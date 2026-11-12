@@ -94,7 +94,7 @@ async function work(
   owner = alice,
   scheme: Parameters<typeof createWork>[1]['scheme'] = { preset: SCHEME_PRESETS[0]!.name },
 ) {
-  const row = await createWork(db, { title: `${title} ${tag}`, language: 'grc', scheme }, owner.id);
+  const row = await createWork(db, { title: `${title} ${tag}`, scheme }, owner.id);
   created.works.push(row.id);
   return row;
 }
@@ -116,7 +116,7 @@ async function textOf(workId: string, lines: Record<string, string>): Promise<St
   const items: Item[] = [];
   for (const [label, text] of Object.entries(lines)) {
     if (items.length) items.push({ kind: 'break', id: newId(), type: 'line' });
-    const line = fromText(text);
+    const line = fromText(text, { lang: 'grc' });
     (line.items[0] as Token).segment = { segmentId: resolved.get(label)!.id };
     items.push(...line.items);
   }
@@ -223,11 +223,12 @@ describe('schemes as given', () => {
 });
 
 describe('works', () => {
-  it('creates a work from a preset with its scheme, profile and creator as maintainer', async () => {
+  it('creates a work from a preset with its scheme and creator as maintainer, and no language', async () => {
     const row = await work('Odyssey');
     expect(row.slug).toBe(`odyssey-${tag}`);
     expect(row).not.toHaveProperty('visibility');
-    expect(row.profile.language).toBe('grc');
+    expect(row).not.toHaveProperty('language');
+    expect(row).not.toHaveProperty('profile');
     const { scheme } = await schemeOfWork(db, row.id);
     expect(scheme.levels).toEqual(SCHEME_PRESETS[0]!.scheme.levels);
     const maintainers = await maintainersOf(db, 'work', row.id);
@@ -249,7 +250,7 @@ describe('works', () => {
       .where(eq(referenceSchemes.id, row.schemeId));
     expect(scheme!.name).toBe('Fragment and line');
     await expect(
-      createWork(db, { title: `Broken ${tag}`, language: 'la', scheme: { levels: [] } }, alice.id),
+      createWork(db, { title: `Broken ${tag}`, scheme: { levels: [] } }, alice.id),
     ).rejects.toThrow(RegistryError);
     expect(
       await db
@@ -272,18 +273,16 @@ describe('works', () => {
     expect(await uniqueSlug(db, works, `free-${tag}`)).toBe(`free-${tag}`);
   });
 
-  it('updates the metadata and resets the profile with the language', async () => {
+  it('updates the metadata', async () => {
     const row = await work('Aeneid');
     const updated = await updateWork(db, row.id, {
       title: `Aeneis ${tag}`,
       author: '  Vergil ',
-      language: 'la',
       identifier: '',
     });
     expect(updated.title).toBe(`Aeneis ${tag}`);
     expect(updated.author).toBe('Vergil');
     expect(updated.identifier).toBeNull();
-    expect(updated.profile.latinUV).toBe(true);
     expect(updated.slug).toBe(row.slug);
   });
 
@@ -745,7 +744,6 @@ describe('search', () => {
       {
         title: `Searchable ${tag} Alpha`,
         author: `Auctor${tag}`,
-        language: 'la',
         scheme: { preset: SCHEME_PRESETS[1]!.name },
       },
       alice.id,
@@ -754,7 +752,6 @@ describe('search', () => {
       db,
       {
         title: `Searchable ${tag} Beta`,
-        language: 'la',
         scheme: { preset: SCHEME_PRESETS[1]!.name },
       },
       alice.id,
@@ -834,7 +831,6 @@ describe('transcriptions of several works, and copies', () => {
       db,
       {
         title: `Other text ${tag}`,
-        language: 'grc',
         scheme: { preset: SCHEME_PRESETS[0]!.name },
       },
       bob.id,

@@ -242,6 +242,7 @@ export async function loadReader(
   return {
     edition: view.edition,
     work: view.work,
+    languages: view.languages,
     lines: view.lines.map(trimLine),
     sigla: view.sigla,
     segments,
@@ -369,7 +370,6 @@ export function readerTei(view: EditionView, bibliography?: EditionBibliography)
   return exportEditionTei({
     title: view.edition.title,
     ...(view.edition.editors.length ? { editors: view.edition.editors } : {}),
-    language: view.work.language,
     ...(view.edition.preface ? { preface: view.edition.preface } : {}),
     ...(view.edition.sources ? { sources: view.edition.sources } : {}),
     ...(view.edition.licence

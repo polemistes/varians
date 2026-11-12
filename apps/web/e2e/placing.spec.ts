@@ -132,7 +132,6 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.waitForLoadState('networkidle');
   await page.locator('input[name=title]').fill(workTitle);
   await page.locator('input[name=author]').fill('Vergilius');
-  await page.locator('select[name=language]').selectOption('la');
   await page.getByRole('button', { name: reg.work.create, exact: true }).click();
   await page.waitForURL(
     (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',
@@ -185,7 +184,7 @@ test('text on no page is placed page by page, and goes back when its page is rem
   const items: Item[] = [];
   for (const [label, text] of Object.entries(LINES)) {
     if (items.length) items.push({ kind: 'break', id: newId(), type: 'line' });
-    const line = fromText(text).items;
+    const line = fromText(text, { lang: 'la' }).items;
     (line[0] as Token).segment = { segmentId: segmentRows.find((x) => x.label === label)!.id };
     items.push(...line);
   }

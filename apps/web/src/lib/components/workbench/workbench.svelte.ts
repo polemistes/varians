@@ -25,7 +25,6 @@ import {
   type Id,
   type Level,
   type MemoryEntry,
-  type NormalizationProfile,
   type Op,
   type Scheme,
   type Stream,
@@ -56,7 +55,6 @@ import {
   autoConfirmOps,
   confirmTokens,
   distinctPairs,
-  profilesByWork,
   typedReadForms,
   uncheckedIn,
   type FormPair,
@@ -94,9 +92,7 @@ export interface WorkbenchWork {
   id: string;
   slug: string;
   title: string;
-  language: string;
   levels: Level[];
-  profile: NormalizationProfile;
 }
 
 export interface WorkbenchInput {
@@ -113,7 +109,6 @@ export interface WorkbenchInput {
     rightsNote: string | null;
     licence?: string | null;
     installationLicence?: string;
-    profile: Partial<NormalizationProfile> | null;
   };
   witness: {
     id: string;
@@ -173,7 +168,6 @@ export class Workbench {
   readonly canMaintainWitness: boolean;
   readonly maxUploadBytes: number;
   readonly visibility: string;
-  readonly profileOverrides: Partial<NormalizationProfile> | null;
 
   // What the server knows
   name = $state('');
@@ -266,7 +260,6 @@ export class Workbench {
     this.canMaintainWitness = input.canMaintainWitness;
     this.maxUploadBytes = input.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
     this.visibility = input.transcription.visibility;
-    this.profileOverrides = input.transcription.profile;
     this.sources = input.transcription.sources;
     this.rightsNote = input.transcription.rightsNote;
     this.licence = input.transcription.licence ?? null;
@@ -379,14 +372,11 @@ export class Workbench {
   readonly editorForm = $derived<Form>(this.keepsWrittenForm ? this.form : 'written');
   readonly otherForm = $derived<Form>(this.editorForm === 'written' ? 'read' : 'written');
   readonly lines = $derived(lineCount(this.pageStream));
-  /** The spelling rules each word is read by: its stretch's work's, else the first work's. */
-  readonly profile = $derived.by(() =>
-    profilesByWork(this.stream, this.segments, this.works, this.profileOverrides, this.workId),
-  );
   readonly unchecked = $derived(this.keepsWrittenForm ? uncheckedIn(this.pageStream).length : 0);
   readonly proposals = $derived.by(() => {
     void this.memoryTick;
-    return this.keepsWrittenForm ? proposeNorms(this.pageStream, this.profile, this.memory) : [];
+    // Each word by the spelling rules of its own language.
+    return this.keepsWrittenForm ? proposeNorms(this.pageStream, undefined, this.memory) : [];
   });
   readonly pageZones = $derived(this.pageId ? (this.zones[this.pageId] ?? null) : null);
   readonly unmapped = $derived(
@@ -412,7 +402,7 @@ export class Workbench {
   /** Proposals over the whole text, for accepting a pair everywhere at once. */
   proposalsEverywhere() {
     void this.memoryTick;
-    return proposeNorms(this.stream, this.profile, this.memory);
+    return proposeNorms(this.stream, undefined, this.memory);
   }
 
   // Saving
@@ -566,7 +556,7 @@ export class Workbench {
     if (this.recheck.size === 0) return;
     const ids = [...this.recheck];
     this.recheck.clear();
-    this.apply(autoConfirmOps(this.stream, ids, this.profile));
+    this.apply(autoConfirmOps(this.stream, ids));
   }
 
   // Normalization

@@ -8,15 +8,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import {
-  SCHEME_PRESETS,
-  defaultProfile,
-  fromText,
-  newId,
-  type Item,
-  type Stream,
-  type Token,
-} from '@varians/core';
+import { SCHEME_PRESETS, fromText, newId, type Item, type Stream, type Token } from '@varians/core';
 import {
   createDatabase,
   editionSigla,
@@ -83,9 +75,7 @@ async function build(userId: string) {
     id: workId,
     slug: WORK,
     title: 'Copied lines',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const segments = await resolveLabels(db, await schemeOfWork(db, workId), Object.keys(A));
@@ -93,7 +83,7 @@ async function build(userId: string) {
     const items: Item[] = [];
     Object.entries(lines).forEach(([label, text], k) => {
       if (k > 0) items.push({ kind: 'break', id: newId(), type: 'line' });
-      const words = fromText(text).items;
+      const words = fromText(text, { lang: 'grc' }).items;
       (words[0] as Token).segment = { segmentId: segments.get(label)!.id };
       items.push(...words);
     });

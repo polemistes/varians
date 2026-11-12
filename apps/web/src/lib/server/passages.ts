@@ -289,7 +289,7 @@ export async function collatePassagesFor(
       if (budget < 1) break;
       budget -= 1;
       const fact = facts.get(i)!;
-      fact.alone = collate(fact.base, fact.witnesses, { fold: context.profile.fold });
+      fact.alone = collate(fact.base, fact.witnesses);
       remember(fact.hash, fact.alone);
       fact.stored = { alone: serializeCollation(fact.alone) };
       markDirty(i);
@@ -560,7 +560,7 @@ export async function collatePassagesFor(
     } else stillLacking.push(lacking);
   }
   for (const { k, ids, inputs } of stillLacking) {
-    const passage = collatePassage(inputs, { fold: context.profile.fold });
+    const passage = collatePassage(inputs);
     remember(`p:${passageHash(context, inputs)}`, passage.collation);
     made[k] = passageResult(inputs, passage.collation);
     const first = facts.get(ids[0]!)!;
@@ -660,10 +660,7 @@ const LINKS_KEPT = 64;
 
 /** Link a run of neighbouring passages (`linkAll`), from what is remembered of the same run where it can be. */
 function linkRun(context: EditionContext, list: PassageResult[], keys: string[]): void {
-  const key = createHash('sha256')
-    .update(JSON.stringify(context.profile.fold))
-    .update(keys.join('|'))
-    .digest('hex');
+  const key = createHash('sha256').update(keys.join('|')).digest('hex');
   let links = linksOf.get(key);
   if (!links) {
     const linked: Pick<Passage, 'segments' | 'collation' | 'base' | 'witnesses'>[] = list.map(
@@ -674,7 +671,7 @@ function linkRun(context: EditionContext, list: PassageResult[], keys: string[])
         witnesses: p.witnesses,
       }),
     );
-    linkAll(linked, { fold: context.profile.fold });
+    linkAll(linked);
     links = list.map((p, k) => {
       const before = new Map(p.collation.sites.map((site) => [site.index, site] as const));
       const changed: Links[number] = [];
@@ -750,7 +747,7 @@ export async function collateSegment(
   if (row && row.inputHash === hash && stored && 'alone' in stored)
     collation = reviveCollation(stored.alone);
   else {
-    collation = collate(base, texts, { fold: context.profile.fold });
+    collation = collate(base, texts);
     await db
       .insert(collationCache)
       .values({

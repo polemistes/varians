@@ -23,7 +23,7 @@ import {
 } from './marks.ts';
 
 function setup(text: string, form: 'written' | 'read' = 'written') {
-  const stream = fromText(text, { ids: sequentialIds() });
+  const stream = fromText(text, { lang: 'grc', ids: sequentialIds() });
   const ledger = render(stream, form);
   const byId = new Map<Id, Item>(stream.items.map((i) => [i.id, i]));
   return { stream, ledger, byId };

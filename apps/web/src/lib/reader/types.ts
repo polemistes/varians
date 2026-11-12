@@ -115,7 +115,9 @@ export interface ReaderData {
     version: number;
     conventions: EditionConventions;
   };
-  work: { id: string; title: string; author: string | null; language: string };
+  work: { id: string; title: string; author: string | null };
+  /** The languages of the text, those of more words first; every word carries its own (`lang`). */
+  languages: string[];
   lines: LayoutLine[];
   sigla: ReaderSiglum[];
   /** The passages sent, by their first segment. */

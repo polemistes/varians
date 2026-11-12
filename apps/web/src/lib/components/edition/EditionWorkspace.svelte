@@ -1642,7 +1642,7 @@
         {reviewed}
         {canEdit}
         context={variantContext}
-        lang={view.work.language}
+        lang={view.languages[0]}
         busy={[...stale]}
         onadopt={(segmentId, site, choice) => void adopt(segmentId, site, choice)}
         onkeep={(segmentId, site, flag) => void setReviewed(segmentId, site, flag)}

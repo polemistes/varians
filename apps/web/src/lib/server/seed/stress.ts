@@ -13,7 +13,6 @@ import {
   adoptReading,
   archetypeLetters,
   attachToSites,
-  defaultProfile,
   isToken,
   newId,
   runsOfSegment,
@@ -188,10 +187,14 @@ export function streamOf(
   return { stream: { items }, starts, tokens };
 }
 
+/** The language of every word of the stress play. */
+const STRESS_LANGUAGE = 'grc';
+
 function itemOf(item: StressItem): Item {
   switch (item.kind) {
     case 'word': {
-      const token: Token = { kind: 'token', id: newId(), form: item.form };
+      // The stress play is in Ancient Greek.
+      const token: Token = { kind: 'token', id: newId(), lang: STRESS_LANGUAGE, form: item.form };
       if (item.norm !== undefined) token.norm = item.norm;
       if (item.marks?.length) token.marks = item.marks.map((m) => ({ ...m }));
       return token;
@@ -447,10 +450,8 @@ async function makeWorks(s: Seeding, slug: string): Promise<string | null> {
     slug,
     title: 'The Stress Play',
     author: 'Nobody',
-    language: 'grc',
     identifier: STRESS_IDENTIFIER,
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: ownerId,
   });
   await db.insert(workMaintainers).values({ workId: s.workId, userId: ownerId });
@@ -473,10 +474,8 @@ async function makeWorks(s: Seeding, slug: string): Promise<string | null> {
       id: scholiaWorkId,
       slug: `${slug}-scholia`,
       title: 'Scholia to the Stress Play',
-      language: 'grc',
       identifier: STRESS_SCHOLIA_IDENTIFIER,
       schemeId: scholiaScheme,
-      profile: defaultProfile('grc'),
       createdBy: ownerId,
     });
     await db.insert(workMaintainers).values({ workId: scholiaWorkId, userId: ownerId });
@@ -1100,6 +1099,7 @@ function opsForConjecture(
         items.push({
           kind: 'token',
           id: newId(),
+          lang: STRESS_LANGUAGE,
           form,
           source: { kind: 'conjecture', conjectureId },
           ...(c.kind === 'supplement'
@@ -1118,7 +1118,7 @@ function opsForConjecture(
     conjectureKind: c.kind,
     ...(c.anchorWord !== null ? { anchorTokenIds: [at.id] } : {}),
   };
-  const attached = attachToSites(collation, baseUnits, [candidate], work.context.profile.fold);
+  const attached = attachToSites(collation, baseUnits, [candidate]);
   const entry = Object.entries(attached.bySite)[0];
   if (!entry) return null;
   const site: Site | undefined = attached.collation.sites.find((x) => x.index === Number(entry[0]));

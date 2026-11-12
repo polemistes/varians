@@ -92,11 +92,7 @@ async function work(
   scheme: Parameters<typeof createWork>[1]['scheme'] = epic,
   extra: Partial<Parameters<typeof createWork>[1]> = {},
 ) {
-  const row = await createWork(
-    db,
-    { title: `${title} ${tag}`, language: 'grc', scheme, ...extra },
-    owner.id,
-  );
+  const row = await createWork(db, { title: `${title} ${tag}`, scheme, ...extra }, owner.id);
   created.works.push(row.id);
   return row;
 }
@@ -139,7 +135,7 @@ async function textOf(workId: string, lines: Record<string, string>): Promise<St
   const items: Item[] = [];
   for (const [label, text] of Object.entries(lines)) {
     if (items.length) items.push({ kind: 'break', id: newId(), type: 'line' });
-    const line = fromText(text);
+    const line = fromText(text, { lang: 'grc' });
     (line.items[0] as Token).segment = { segmentId: resolved.get(label)!.id };
     items.push(...line.items);
   }

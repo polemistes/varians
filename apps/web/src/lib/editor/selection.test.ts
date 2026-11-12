@@ -13,7 +13,7 @@ import { render, type Form } from './bridge.ts';
 import { planInsertion, selectionTokens, tokenAt, type Insertion } from './selection.ts';
 
 function setup(text: string, form: Form = 'written') {
-  const stream = fromText(text, { ids: sequentialIds() });
+  const stream = fromText(text, { lang: 'grc', ids: sequentialIds() });
   stream.items.splice(2, 0, { kind: 'object', id: 'g1', type: 'gap' });
   const ledger = render(stream, form);
   const byId = new Map<Id, Item>(stream.items.map((i) => [i.id, i]));
@@ -138,7 +138,7 @@ describe('planInsertion', () => {
   });
 
   it('inserts into an empty document', () => {
-    const stream = fromText('', { ids: sequentialIds() });
+    const stream = fromText('', { lang: 'en', ids: sequentialIds() });
     const ledger = render(stream, 'written');
     const plan = planInsertion(ledger, new Map(), 'written', 0, 'object');
     expect(plan).toEqual({
@@ -159,7 +159,7 @@ describe('planInsertion', () => {
 
 describe('a break at a line start', () => {
   it('turns the line break into the new break, so no empty line is left', () => {
-    const stream = fromText('ab\ncd', { ids: sequentialIds() });
+    const stream = fromText('ab\ncd', { lang: 'en', ids: sequentialIds() });
     const ops: Op[] = [{ t: 'set', id: 't2', fields: { type: 'page', pageId: 'p2' } }];
     const after = applyOps(stream, ops).stream;
     expect(toText(after)).toBe('ab\ncd');

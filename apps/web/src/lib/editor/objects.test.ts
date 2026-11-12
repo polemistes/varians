@@ -32,7 +32,7 @@ describe('a gap in the text of the editor', () => {
   });
 
   it('is told in its tooltip by its label, without the reason it is stored by', () => {
-    const stream: Stream = fromText('a b', { ids: sequentialIds() });
+    const stream: Stream = fromText('a b', { lang: 'en', ids: sequentialIds() });
     const model = buildModel(stream, { form: 'written' });
     expect(tooltipRows(model, gap({ ...NOT_TRANSCRIBED_ATTRS }))).toEqual([
       ['not transcribed', ''],
@@ -44,7 +44,7 @@ describe('a gap in the text of the editor', () => {
   });
 
   it('is drawn as a widget like any gap, labelled so', () => {
-    const stream = fromText('a b', { ids: sequentialIds() });
+    const stream = fromText('a b', { lang: 'en', ids: sequentialIds() });
     stream.items.splice(1, 0, gap({ ...NOT_TRANSCRIBED_ATTRS }));
     const model = buildModel(stream, { form: 'written' });
     const decorations = buildDecorations(model, false);

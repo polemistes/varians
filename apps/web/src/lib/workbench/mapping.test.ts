@@ -18,7 +18,7 @@ import {
 const rect = (x: number, y: number, w: number, h: number) => ({ rect: { x, y, w, h } });
 
 describe('zones and words', () => {
-  const page = fromText('aa bb\ncc', { ids: sequentialIds() }); // t1 t2 / t4
+  const page = fromText('aa bb\ncc', { lang: 'en', ids: sequentialIds() }); // t1 t2 / t4
   const zones: ZoneLike[] = [
     { id: 'z1', tokenIds: ['t1'], geometry: rect(0, 0, 0.1, 0.1) },
     { id: 'z2', tokenIds: ['t2', 't4'], geometry: rect(0.2, 0, 0.1, 0.1) },
@@ -40,7 +40,7 @@ describe('zones and words', () => {
 
 describe('selectedLines', () => {
   it('takes whole lines touched by the selection, with gaps as spacers', () => {
-    const s = fromText('aa bb\ncc dd\nee', { ids: sequentialIds() }); // t1 t2 / t4 t5 / t7
+    const s = fromText('aa bb\ncc dd\nee', { lang: 'en', ids: sequentialIds() }); // t1 t2 / t4 t5 / t7
     const gap: Obj = {
       kind: 'object',
       id: 'g',
@@ -59,7 +59,7 @@ describe('selectedLines', () => {
   });
 
   it('gives the parts of a word divided across lines every token of the word', () => {
-    const s = fromText('aa bb\ncc dd', { ids: sequentialIds() }); // t1 t2 / t4 t5
+    const s = fromText('aa bb\ncc dd', { lang: 'en', ids: sequentialIds() }); // t1 t2 / t4 t5
     (s.items[1] as Token).joinNext = true;
     const lines = selectedLines(s, ['t1', 't5']);
     expect(lines[0]!.parts[1]!.tokenIds).toEqual(['t2', 't4']);
@@ -67,7 +67,7 @@ describe('selectedLines', () => {
   });
 
   it('finds the tokens on the line of a token', () => {
-    const s = fromText('aa bb\ncc', { ids: sequentialIds() });
+    const s = fromText('aa bb\ncc', { lang: 'en', ids: sequentialIds() });
     expect(lineTokens(s, 't2')).toEqual(['t1', 't2']);
     expect(lineTokens(s, 't4')).toEqual(['t4']);
   });
@@ -167,7 +167,7 @@ describe('groupBoxes', () => {
   });
 
   it('takes the boxes of the selected words, with their lines and places, in reading order', () => {
-    const page = fromText('aa bb cc\ndd ee', { ids: sequentialIds() }); // t1 t2 t3 / t5 t6
+    const page = fromText('aa bb cc\ndd ee', { lang: 'en', ids: sequentialIds() }); // t1 t2 t3 / t5 t6
     const zones = [
       box('z3', ['t3'], 0.3, 0.1),
       box('z1', ['t1'], 0.1, 0.1),
@@ -185,7 +185,7 @@ describe('groupBoxes', () => {
   });
 
   it('leaves out features, polygons and boxes not chosen', () => {
-    const page = fromText('aa bb', { ids: sequentialIds() });
+    const page = fromText('aa bb', { lang: 'en', ids: sequentialIds() });
     const zones: ZoneLike[] = [
       box('z1', ['t1'], 0.1, 0.1),
       {
@@ -212,7 +212,7 @@ describe('groupBoxes', () => {
   });
 
   it('puts each part of a word divided across lines on the line it stands on', () => {
-    const page = fromText('aa bb\ncc dd', { ids: sequentialIds() }); // t1 t2 / t4 t5; bb-cc one word
+    const page = fromText('aa bb\ncc dd', { lang: 'en', ids: sequentialIds() }); // t1 t2 / t4 t5; bb-cc one word
     const zones = [
       box('a', ['t1'], 0.1, 0.1),
       box('first', ['t2', 't4'], 0.2, 0.1),
@@ -229,7 +229,7 @@ describe('groupBoxes', () => {
   });
 
   it('puts boxes whose words are gone in lines by where they stand, after the lines of the text', () => {
-    const page = fromText('aa', { ids: sequentialIds() }); // t1
+    const page = fromText('aa', { lang: 'en', ids: sequentialIds() }); // t1
     const zones = [
       box('kept', ['t1'], 0.1, 0.05),
       box('r2b', ['gone4'], 0.3, 0.205),

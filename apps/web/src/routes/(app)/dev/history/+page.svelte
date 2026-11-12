@@ -61,7 +61,13 @@
                 t: 'insert',
                 after: token.id,
                 items: [
-                  { kind: 'token', id: newId(), form: t.dev.added, source: { kind: 'editor' } },
+                  {
+                    kind: 'token',
+                    id: newId(),
+                    ...(token.lang ? { lang: token.lang } : {}),
+                    form: t.dev.added,
+                    source: { kind: 'editor' },
+                  },
                 ],
               },
             ]

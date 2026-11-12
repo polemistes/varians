@@ -11,7 +11,9 @@ import { buildModel } from './model.ts';
 import { modelExtensions, modelField } from './state.ts';
 
 function editorState(text: string) {
-  const model = buildModel(fromText(text, { ids: sequentialIds() }), { form: 'written' });
+  const model = buildModel(fromText(text, { lang: 'grc', ids: sequentialIds() }), {
+    form: 'written',
+  });
   return EditorState.create({
     doc: model.ledger.text,
     extensions: [modelField.init(() => ({ model, ops: [] })), modelExtensions, history()],

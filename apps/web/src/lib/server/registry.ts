@@ -11,7 +11,6 @@
  */
 import {
   SCHEME_PRESETS,
-  defaultProfile,
   deriveTranscription,
   newId,
   segmentIds,
@@ -246,7 +245,6 @@ export type SchemeInput = { preset: string } | { levels: Level[]; name?: string 
 export interface NewWork {
   title: string;
   author?: string | null;
-  language: string;
   identifier?: string | null;
   /** Further canonical identifiers, checked by parseIdentifiers. */
   identifiers?: CanonicalIdentifier[];
@@ -295,11 +293,10 @@ export function schemeName(scheme: Scheme): string {
   return preset?.name ?? joinLevelLabels(scheme);
 }
 
-/** Creates the scheme row, the work with the default profile of its language, and the creator as maintainer. */
+/** Creates the scheme row, the work, and the creator as maintainer. A work has no language: its texts' words have theirs. */
 export async function createWork(db: Database, input: NewWork, userId: string): Promise<Work> {
   const scheme = resolveSchemeInput(input.scheme);
   const title = input.title.trim();
-  const language = input.language.trim();
   return withSlug(db, works, slugify(title, 'work'), (slug) =>
     db.transaction(async (tx) => {
       const schemeId = newId();
@@ -313,12 +310,10 @@ export async function createWork(db: Database, input: NewWork, userId: string): 
           slug,
           title,
           author: clean(input.author),
-          language,
           identifier: clean(input.identifier),
           identifiers: input.identifiers ?? [],
           description: clean(input.description),
           schemeId,
-          profile: defaultProfile(language),
           createdBy: userId,
         })
         .returning();
@@ -331,7 +326,6 @@ export async function createWork(db: Database, input: NewWork, userId: string): 
 export interface WorkUpdate {
   title?: string;
   author?: string | null;
-  language?: string;
   identifier?: string | null;
   identifiers?: CanonicalIdentifier[];
   description?: string | null;
@@ -361,8 +355,7 @@ async function relabelSegments(tx: Tx, changed: { id: string; label: string }[])
 }
 
 /**
- * Updates the metadata, and the scheme when given. A language change resets
- * the normalization profile to the language's default. A scheme shared with
+ * Updates the metadata, and the scheme when given. A scheme shared with
  * another work is copied first, so the change stays with this work; when the
  * separators change, the segments are relabelled.
  */
@@ -375,10 +368,6 @@ export async function updateWork(db: Database, workId: string, fields: WorkUpdat
   if (fields.identifier !== undefined) set.identifier = clean(fields.identifier);
   if (fields.identifiers !== undefined) set.identifiers = fields.identifiers;
   if (fields.description !== undefined) set.description = clean(fields.description);
-  if (fields.language !== undefined && fields.language.trim() !== current.language) {
-    set.language = fields.language.trim();
-    set.profile = defaultProfile(set.language);
-  }
   return db.transaction(async (tx) => {
     if (fields.scheme) {
       const levels = normalizeLevels(fields.scheme.levels);
@@ -704,7 +693,6 @@ export async function createTranscription(
       ownerId,
       keepsWrittenForm: input.keepsWrittenForm ?? source?.keepsWrittenForm ?? false,
       displayAsWritten: source?.displayAsWritten ?? false,
-      profile: source?.profile ?? null,
       memory: source?.memory ?? [],
       sources: source?.sources ?? null,
       rightsNote: source?.rightsNote ?? null,

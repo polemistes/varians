@@ -196,8 +196,6 @@
 
     <Section title={t.work.about}>
       <dl class="grid gap-x-8 gap-y-3 font-sans text-sm sm:grid-cols-[10rem_1fr]">
-        <dt class="text-ink-muted">{t.work.language}</dt>
-        <dd class="text-ink">{work.languageName}</dd>
         <dt class="text-ink-muted">{t.work.numbering}</dt>
         <dd class="text-ink">{data.schemeSentence}</dd>
         {#if work.identifier}

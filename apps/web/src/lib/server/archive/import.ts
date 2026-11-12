@@ -30,7 +30,7 @@ import {
   ReconcileError,
   type DataLicence,
   type Level,
-  type NormalizationProfile,
+  type Item,
   type Op,
   type Stream,
   type ZoneGeometry,
@@ -683,7 +683,8 @@ async function importInto(
     slug: string;
     title: string;
     author: string | null;
-    language: string;
+    /** Written on or before 12 November 2026: the language of the words, read as the language of a token without one. */
+    language?: unknown;
     identifier: string | null;
     identifiers?: unknown;
     description: string | null;
@@ -694,7 +695,6 @@ async function importInto(
       createdBy?: string | null;
       createdAt?: string | null;
     } | null;
-    profile: NormalizationProfile;
     maintainers?: { id: string; name: string | null; since?: string | null }[];
     mergedIds?: { id: string; label: string; mergedBy?: string | null; mergedAt?: string | null }[];
     createdBy?: string | null;
@@ -702,6 +702,9 @@ async function importInto(
   }>(path.join(dir, 'work.json'));
   if (!work) throw new Error(`no work.json in ${dir}`);
   const formatVersion = typeof work.formatVersion === 'number' ? work.formatVersion : 1;
+  // The language of the words of an archive written before every word carried its own.
+  const wordsOf = (content: Stream): Stream =>
+    withWordLanguages(content, typeof work.language === 'string' ? work.language : undefined);
 
   await checkLicences(reader, dir);
   const known = new Set((await db.select({ id: users.id }).from(users)).map((u) => u.id));
@@ -803,12 +806,10 @@ async function importInto(
         slug,
         title: work.title,
         author: work.author,
-        language: work.language,
         identifier: work.identifier,
         identifiers,
         description: work.description,
         schemeId: work.scheme.id,
-        profile: work.profile,
         createdBy: work.createdBy === undefined ? userId : owner(ctx, work.createdBy),
         createdAt: when(work.createdAt),
       })
@@ -818,12 +819,10 @@ async function importInto(
           slug,
           title: work.title,
           author: work.author,
-          language: work.language,
           identifier: work.identifier,
           identifiers,
           description: work.description,
           schemeId: work.scheme.id,
-          profile: work.profile,
         },
       });
   }
@@ -1031,7 +1030,6 @@ async function importInto(
         version: number;
         keepsWrittenForm: boolean;
         displayAsWritten: boolean;
-        profile: Partial<NormalizationProfile> | null;
         description: string | null;
         sources?: string | null;
         /** An SPDX identifier since format 2; free text before. */
@@ -1054,7 +1052,6 @@ async function importInto(
         visibility: t.visibility,
         keepsWrittenForm: t.keepsWrittenForm,
         displayAsWritten: t.displayAsWritten,
-        profile: t.profile,
         memory,
         description: t.description,
         sources: t.sources ?? null,
@@ -1067,6 +1064,7 @@ async function importInto(
         t.name,
         tdir,
         t.content,
+        wordsOf,
         async (content, version) => {
           await db
             .insert(transcriptions)
@@ -1254,6 +1252,7 @@ async function importInto(
       e.title,
       edir,
       e.content,
+      wordsOf,
       async (content, version) => {
         await db
           .insert(editions)
@@ -1645,10 +1644,13 @@ async function importDocument(
   id: string,
   name: string,
   dir: string,
-  incomingContent: Stream,
+  incoming: Stream,
+  /** The text as Varians now has it, from the text of an older archive (`withWordLanguages`). */
+  wordsOf: (content: Stream) => Stream,
   upsert: (content: Stream, version: number) => Promise<void>,
 ): Promise<DocumentOutcome> {
   const { db } = ctx;
+  const incomingContent = wordsOf(incoming);
   const table = kind === 'transcription' ? transcriptions : editions;
   const history = await readHistory(ctx, dir);
   const [local] = await db
@@ -1745,11 +1747,12 @@ async function importDocument(
       const apply = values(r.apply);
       const version = local.version + apply.length;
       const stored = await store(apply, (i) => local.version + i + 1);
-      await db.update(table).set({ content: r.content, version }).where(eq(table.id, id));
-      await upsert(r.content, version);
+      const content = wordsOf(r.content);
+      await db.update(table).set({ content, version }).where(eq(table.id, id));
+      await upsert(content, version);
       await store(history.unapplied, () => null);
       await importMoments(ctx, dir, kind, id);
-      if (kind === 'transcription') await rebuildSegmentIndex(db, id, r.content);
+      if (kind === 'transcription') await rebuildSegmentIndex(db, id, content);
       return outcome('fast-forward', stored);
     }
     case 'merge': {
@@ -1771,10 +1774,11 @@ async function importDocument(
           : 'merged from an archive',
       });
       stored++;
-      await db.update(table).set({ content: r.content, version }).where(eq(table.id, id));
-      await upsert(r.content, version);
+      const content = wordsOf(r.content);
+      await db.update(table).set({ content, version }).where(eq(table.id, id));
+      await upsert(content, version);
       await importMoments(ctx, dir, kind, id);
-      if (kind === 'transcription') await rebuildSegmentIndex(db, id, r.content);
+      if (kind === 'transcription') await rebuildSegmentIndex(db, id, content);
       return outcome('merged', stored);
     }
     case 'conflict': {
@@ -1810,6 +1814,39 @@ async function importDocument(
       return outcome('taken', stored + 1, { segments: segmentsConcerned, reason: r.reason });
     }
   }
+}
+
+/**
+ * The words of a text from an archive written before every word carried
+ * its own language (12 November 2026): a token with a `foreign` mark takes
+ * the mark's language, over the whole word, and the mark goes; a token
+ * without a language takes `fallback`, the `language` its work.json gave,
+ * where there is one. A text whose words all have theirs is returned as it is.
+ */
+export function withWordLanguages(content: Stream, fallback: string | undefined): Stream {
+  const needs = (item: Item) =>
+    item.kind === 'token' &&
+    ((item.lang === undefined && fallback !== undefined) ||
+      (item.marks ?? []).some((m) => m.kind === 'foreign'));
+  if (!content.items.some(needs)) return content;
+  return {
+    ...content,
+    items: content.items.map((item) => {
+      if (item.kind !== 'token' || !needs(item)) return item;
+      const foreign = (item.marks ?? []).find(
+        (m) => m.kind === 'foreign' && typeof m.attrs?.lang === 'string',
+      );
+      const marks = (item.marks ?? []).filter((m) => m.kind !== 'foreign');
+      const { marks: _marks, ...rest } = item;
+      void _marks;
+      const lang = item.lang ?? (foreign?.attrs?.lang as string | undefined) ?? fallback;
+      return {
+        ...rest,
+        ...(lang !== undefined ? { lang } : {}),
+        ...(marks.length > 0 ? { marks } : {}),
+      };
+    }),
+  };
 }
 
 /** Named and published moments of a document, kept where the version they name is ours too. */

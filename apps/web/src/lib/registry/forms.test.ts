@@ -33,7 +33,7 @@ describe('fields', () => {
 });
 
 describe('parseWorkForm', () => {
-  it('trims and takes a listed language', () => {
+  it('trims, and takes no language: a work has none', () => {
     const parsed = parseWorkForm(
       form({
         title: '  Iliad ',
@@ -48,7 +48,6 @@ describe('parseWorkForm', () => {
       data: {
         title: 'Iliad',
         author: 'Homer',
-        language: 'grc',
         identifier: '',
         identifiers: [],
         description: '',
@@ -56,27 +55,17 @@ describe('parseWorkForm', () => {
     });
   });
 
-  it('takes the code typed for Other', () => {
-    const parsed = parseWorkForm(
-      form({ title: 'Genesis', language: 'other', languageCode: ' hbo ' }),
-    );
-    expect(parsed.ok && parsed.data).toMatchObject({ language: 'hbo' });
-  });
-
   it('knows nothing of a work being private: a form that says so gives a work like any other', () => {
-    const parsed = parseWorkForm(
-      form({ title: 'Genesis', language: 'hbo', visibility: 'private' }),
-    );
+    const parsed = parseWorkForm(form({ title: 'Genesis', visibility: 'private' }));
     expect(parsed.ok && parsed.data).not.toHaveProperty('visibility');
   });
 
   it('reports what is wrong with what was typed', () => {
-    const parsed = parseWorkForm(form({ title: ' ', language: 'other', languageCode: '1x' }));
+    const parsed = parseWorkForm(form({ title: ' ' }));
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
     expect(parsed.errors.title).toEqual(['Give the work a title.']);
-    expect(parsed.errors.language?.[0]).toMatch(/language code/);
-    expect(parsed.values.languageCode).toBe('1x');
+    expect(parsed.values.title).toBe(' ');
   });
 });
 

@@ -11,15 +11,7 @@
  */
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import {
-  SCHEME_PRESETS,
-  defaultProfile,
-  fromText,
-  newId,
-  type Item,
-  type Stream,
-  type Token,
-} from '@varians/core';
+import { SCHEME_PRESETS, fromText, newId, type Item, type Stream, type Token } from '@varians/core';
 import {
   conjectures,
   createDatabase,
@@ -175,9 +167,7 @@ async function build(ownerId: string, otherId: string) {
       slug,
       title,
       author,
-      language: 'lat',
       schemeId,
-      profile: defaultProfile('lat'),
       createdBy: ownerId,
     });
   ids.work = newId();
@@ -189,7 +179,7 @@ async function build(ownerId: string, otherId: string) {
     const items: Item[] = [];
     Object.entries(LINES).forEach(([label, text], k) => {
       if (k > 0) items.push({ kind: 'break', id: newId(), type: 'line' });
-      const words = fromText(text).items;
+      const words = fromText(text, { lang: 'la' }).items;
       (words[0] as Token).segment = { segmentId: segments.get(label)!.id };
       items.push(...words);
     });

@@ -41,11 +41,11 @@ function view(
   editionText: string,
   witnesses: Record<string, string>,
 ): { stream: Stream; segment: SegmentViewClient } {
-  const stream = fromText(editionText, { ids: sequentialIds(`${segmentId}e`) });
+  const stream = fromText(editionText, { lang: 'grc', ids: sequentialIds(`${segmentId}e`) });
   (stream.items[0] as Token).segment = { segmentId };
   const baseUnits = units(stream, 0, stream.items.length);
   const texts = Object.entries(witnesses).map(([siglum, text]) => {
-    const s = fromText(text, { ids: sequentialIds(`${segmentId}${siglum}`) });
+    const s = fromText(text, { lang: 'grc', ids: sequentialIds(`${segmentId}${siglum}`) });
     return { id: siglum, siglum, units: units(s, 0, s.items.length) };
   });
   const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, texts);
@@ -112,7 +112,7 @@ describe('sites and selections', () => {
   });
 
   it('keeps a conjecture on one word apart from the site of a witness lacking the segment', () => {
-    const stream = fromText('the quick brown fox', { ids: sequentialIds('w1e') });
+    const stream = fromText('the quick brown fox', { lang: 'en', ids: sequentialIds('w1e') });
     (stream.items[0] as Token).segment = { segmentId: 'w1' };
     const baseUnits = units(stream, 0, stream.items.length);
     const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, [
@@ -208,7 +208,7 @@ describe('moveLinesOps', () => {
       sequentialIds: ids,
       toText: show,
     } = await import('@varians/core');
-    const s = text('a b\nc d\ne f', { ids: ids() });
+    const s = text('a b\nc d\ne f', { lang: 'en', ids: ids() });
     (s.items[3] as Token).segment = { segmentId: 'seg2' };
     // t1 t2 | t3(br) | t4 t5 | t6(br) | t7 t8
     const up = apply(s, moveLinesOps(s, ['t4'], -1)).stream;
@@ -394,7 +394,7 @@ describe('a line the edition does not print', () => {
       const items: Stream['items'] = [];
       for (const [k, [label, words]] of text.entries()) {
         if (k > 0) items.push({ kind: 'break', id: `${prefix}br${k}`, type: 'line' });
-        const line = fromText(words, { ids: sequentialIds(`${prefix}${label}`) });
+        const line = fromText(words, { lang: 'grc', ids: sequentialIds(`${prefix}${label}`) });
         (line.items[0] as Token).segment = { segmentId: label };
         items.push(...line.items);
       }

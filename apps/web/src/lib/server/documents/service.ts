@@ -26,7 +26,7 @@ import {
   segmentRuns,
   units,
   type Changeset,
-  type NormalizationProfile,
+  unitFold,
   type Op,
   type SegmentRun,
   type Stream,
@@ -39,7 +39,6 @@ import {
   segments,
   transcriptionSegments,
   transcriptions,
-  works,
   type Database,
   type DocumentKind,
 } from '@varians/db';
@@ -488,16 +487,8 @@ async function indexRows(
     .from(segments)
     .where(sql`${segments.id} = any(${sql.param(segmentIds)})`))
     workOf.set(row.id, row.workId);
-  const workIds = [...new Set(workOf.values())];
-  const profiles = new Map<string, NormalizationProfile>();
-  if (workIds.length)
-    for (const row of await db
-      .select({ id: works.id, profile: works.profile })
-      .from(works)
-      .where(inArray(works.id, workIds)))
-      profiles.set(row.id, row.profile as NormalizationProfile);
   const rows = runs
-    .filter((run) => profiles.has(workOf.get(run.segmentId!) ?? ''))
+    .filter((run) => workOf.has(run.segmentId!))
     .map((run) => {
       const workId = workOf.get(run.segmentId!)!;
       const runUnits = units(content, run.from, run.to);
@@ -509,9 +500,8 @@ async function indexRows(
         part: run.part,
         firstItemId: first.id,
         unitCount: runUnits.length,
-        foldText: runUnits
-          .map((u) => (u.gap ? '[...]' : fold(u.text, profiles.get(workId)!.fold)))
-          .join(' '),
+        // Each word folded by its own language.
+        foldText: runUnits.map((u) => (u.gap ? '[...]' : fold(u.text, unitFold(u.lang)))).join(' '),
       };
     });
   // Two runs with the same part number (older data, or a numbering slip) keep the first.

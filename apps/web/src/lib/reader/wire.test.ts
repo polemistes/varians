@@ -15,11 +15,11 @@ function packable(
   editionText: string,
   witnesses: Record<string, string | null>,
 ): { segment: PackableSegment; collation: Collation } {
-  const edition = fromText(editionText, { ids: sequentialIds(`${segmentId}e`) });
+  const edition = fromText(editionText, { lang: 'grc', ids: sequentialIds(`${segmentId}e`) });
   const baseUnits = units(edition, 0, edition.items.length);
   const texts = Object.entries(witnesses).map(([siglum, text]) => {
     if (text === null) return { id: `t${siglum}`, siglum, units: [], present: true };
-    const s = fromText(text, { ids: sequentialIds(`${segmentId}${siglum}`) });
+    const s = fromText(text, { lang: 'grc', ids: sequentialIds(`${segmentId}${siglum}`) });
     return { id: `t${siglum}`, siglum, units: units(s, 0, s.items.length) };
   });
   const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, texts);

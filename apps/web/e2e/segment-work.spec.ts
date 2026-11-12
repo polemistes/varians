@@ -75,7 +75,6 @@ test('the work is chosen in the segment window, and comes back by itself once te
   await page.waitForLoadState('networkidle');
   await page.locator('input[name=title]').fill(workTitle);
   await page.locator('input[name=author]').fill('Vergilius');
-  await page.locator('select[name=language]').selectOption('la');
   await page.getByRole('button', { name: reg.work.create, exact: true }).click();
   await page.waitForURL(
     (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',
@@ -102,9 +101,9 @@ test('the work is chosen in the segment window, and comes back by itself once te
 
   // Two lines of text, assigned to nothing.
   const items: Item[] = [
-    ...fromText('arma virumque cano').items,
+    ...fromText('arma virumque cano', { lang: 'la' }).items,
     { kind: 'break', id: newId(), type: 'line' },
-    ...fromText('Italiam fato profugus').items,
+    ...fromText('Italiam fato profugus', { lang: 'la' }).items,
   ];
   const saving = await page.request.post(`/api/documents/transcription/${transcriptionId}/ops`, {
     data: { fromVersion: 0, ops: [{ t: 'insert', after: null, items }] },

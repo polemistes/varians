@@ -7,7 +7,6 @@
 
 import {
   SCHEME_PRESETS,
-  defaultProfile,
   deriveEdition,
   fromText,
   newId,
@@ -82,7 +81,8 @@ function linesToStream(
       items.push({ kind: 'break', id: newId(), type: 'page', pageId: pageBefore[label] });
     else if (!first) items.push({ kind: 'break', id: newId(), type: 'line' });
     first = false;
-    const line = fromText(text);
+    // The sample is the Iliad: every word is Ancient Greek.
+    const line = fromText(text, { lang: 'grc' });
     (line.items[0] as Token).segment = { segmentId: segmentIdOf(label) };
     items.push(...line.items);
   }
@@ -134,10 +134,8 @@ export async function seedSample(
     slug: 'iliad',
     title: 'Iliad',
     author: 'Homer',
-    language: 'grc',
     identifier: 'urn:cts:greekLit:tlg0012.tlg001',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: ownerId,
   });
   await db.insert(workMaintainers).values({ workId, userId: ownerId });

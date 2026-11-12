@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defaultProfile, newId } from '@varians/core';
+import { newId } from '@varians/core';
 import {
   createDatabase,
   editionCollaborators,
@@ -35,7 +35,6 @@ beforeAll(async () => {
     slug: `w-${ids.work}`,
     title: 'W',
     schemeId: ids.scheme,
-    profile: defaultProfile('grc'),
   });
   await db.insert(editions).values({
     id: ids.edition,

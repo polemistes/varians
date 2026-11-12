@@ -26,7 +26,7 @@ describe('removing marks', () => {
   });
 
   it('changes the diplomatic or the normalized form, and only what changes', () => {
-    const s = fromText('μῆνιν ἄειδε', { ids: sequentialIds() });
+    const s = fromText('μῆνιν ἄειδε', { lang: 'grc', ids: sequentialIds() });
     expect(removeMarksOps(s, ['t1', 't2'], 'form', ['accents'])).toEqual([
       { t: 'set', id: 't1', fields: { form: 'μηνιν' } },
       { t: 'set', id: 't2', fields: { form: 'ἀειδε' } },
@@ -40,7 +40,7 @@ describe('removing marks', () => {
   });
 
   it('makes words lower case with a final sigma, or upper case', () => {
-    const s = fromText('ΛΟΓΟΣ καὶ', { ids: sequentialIds() });
+    const s = fromText('ΛΟΓΟΣ καὶ', { lang: 'grc', ids: sequentialIds() });
     const lower = applyOps(s, caseOps(s, ['t1', 't2'], 'form', 'lower')).stream;
     expect((lower.items[0] as Token).form).toBe('λογος');
     expect(caseOps(s, ['t2'], 'form', 'upper')).toEqual([
@@ -156,7 +156,7 @@ describe('takeForms', () => {
     words.split(' ').map((text, i) => ({ text, tokenIds: [ids[i]!] }));
 
   it("takes the other text's forms where the letters agree, and leaves the variants", () => {
-    const s = fromText('μηνιν αειδε θεα Πηληιαδεω', { ids: sequentialIds() });
+    const s = fromText('μηνιν αειδε θεα Πηληιαδεω', { lang: 'grc', ids: sequentialIds() });
     const here = { s1: units('μηνιν αειδε θεα Πηληιαδεω', ['t1', 't2', 't3', 't4']) };
     const there = { s1: units('μῆνιν ἔνεπε θεὰ Πηληϊάδεω', ['x1', 'x2', 'x3', 'x4']) };
     const out = takeForms(s, ['t1', 't2', 't3', 't4'], 'form', false, here, there);
@@ -170,7 +170,7 @@ describe('takeForms', () => {
   });
 
   it('acts only on the words in scope', () => {
-    const s = fromText('μηνιν θεα', { ids: sequentialIds() });
+    const s = fromText('μηνιν θεα', { lang: 'grc', ids: sequentialIds() });
     const out = takeForms(
       s,
       ['t2'],

@@ -24,8 +24,6 @@ import type { Database } from '@varians/db';
 const WORK_FIELDS = [
   'title',
   'author',
-  'language',
-  'languageCode',
   'identifier',
   'identifiers',
   'description',

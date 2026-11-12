@@ -1,10 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { Field, Input, Textarea } from '$lib/components/ui';
-  import { LANGUAGE_OTHER } from '$lib/registry/constants';
   import { registry } from '$lib/strings/registry';
   import IdentifiersField from './IdentifiersField.svelte';
-  import LanguageField from './LanguageField.svelte';
   import RegistrySearch from './RegistrySearch.svelte';
 
   interface Props {
@@ -20,9 +18,6 @@
   const s = registry.work;
   // The initial title only; the input owns it from here on.
   let title = $state(untrack(() => values.title ?? ''));
-  const language = $derived(
-    values.language === LANGUAGE_OTHER ? (values.languageCode ?? '') : (values.language ?? 'grc'),
-  );
 </script>
 
 <div class="flex flex-col gap-5">
@@ -53,11 +48,6 @@
       />
     {/snippet}
   </Field>
-  <LanguageField
-    value={language}
-    other={values.language === LANGUAGE_OTHER}
-    error={errors.language}
-  />
   <Field label={s.identifier} hint={s.identifierHint} error={errors.identifier}>
     {#snippet children(control)}
       <Input

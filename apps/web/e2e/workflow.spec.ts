@@ -80,7 +80,7 @@ function streamOf(lines: Record<string, string>, segmentIds: Record<string, stri
   const items: Item[] = [];
   for (const [label, text] of Object.entries(lines)) {
     if (items.length) items.push({ kind: 'break', id: newId(), type: 'line' });
-    const line = fromText(text).items;
+    const line = fromText(text, { lang: 'la' }).items;
     (line[0] as Token).segment = { segmentId: segmentIds[label]! };
     items.push(...line);
   }
@@ -115,7 +115,6 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await page.waitForLoadState('networkidle');
   await page.locator('input[name=title]').fill(workTitle);
   await page.locator('input[name=author]').fill('Vergilius');
-  await page.locator('select[name=language]').selectOption('la');
   await page.getByRole('button', { name: reg.work.create, exact: true }).click();
   await page.waitForURL(
     (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',

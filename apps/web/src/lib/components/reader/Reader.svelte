@@ -54,6 +54,7 @@
   import ReaderBar from './ReaderBar.svelte';
   import DictionaryPanel from './DictionaryPanel.svelte';
   import { trimPunctuation } from '@varians/core';
+  import { isGreek } from '$lib/reader/language';
   import ReaderColophon from './ReaderColophon.svelte';
   import ReaderHeading from './ReaderHeading.svelte';
   import TextLine from './TextLine.svelte';
@@ -252,8 +253,10 @@
   let witnessOpen = $state(false);
   let facsimileOpen = $state(false);
   let dictionaryOpen = $state(false);
-  /** The dictionary is offered for Greek texts. */
-  const hasDictionary = $derived(['grc', 'el'].includes(data.work.language.split('-')[0] ?? ''));
+  /** The language of the text: that of most of its words. A word in another says its own. */
+  const textLang = $derived(data.languages[0]);
+  /** The dictionary is offered for Greek words: where the text has any. */
+  const hasDictionary = $derived(data.languages.some(isGreek));
   /** The word last clicked while the dictionary is open. */
   let lookedUp = $state<string | null>(null);
   const panelsOpen = $derived(variantsOpen || witnessOpen || facsimileOpen || dictionaryOpen);
@@ -262,7 +265,7 @@
     const out = new Map<string, string>();
     for (const line of data.lines)
       for (const item of line.items)
-        if (item.kind === 'token') out.set(item.id, item.norm ?? item.form);
+        if (item.kind === 'token' && isGreek(item.lang)) out.set(item.id, item.norm ?? item.form);
     return out;
   });
   let chosenSiglum = $state<string | null>(null);
@@ -538,7 +541,7 @@
     const root = reading;
     if (!root) return;
     const click = (event: MouseEvent) => {
-      // With the dictionary open, any word is looked up.
+      // With the dictionary open, any Greek word is looked up.
       if (dictionaryOpen && !window.getSelection()?.toString()) {
         const any = (event.target as HTMLElement).closest<HTMLElement>('[data-token]');
         const text = any?.dataset.token ? wordOf.get(any.dataset.token) : undefined;
@@ -703,7 +706,7 @@
           ]}
           bind:this={textRoot}
           aria-label={r.text.label}
-          lang={data.work.language}
+          lang={textLang}
         >
           {#each blocks as block (block.index)}
             <section class="block">
@@ -739,6 +742,7 @@
                     matches={matchTokens}
                     hit={hitLines.has(i)}
                     currentHit={currentHitLine === i}
+                    {textLang}
                   />
                 {/each}
               </div>
@@ -755,6 +759,7 @@
           sources={data.edition.sources}
           licence={data.edition.licence}
           rightsNote={data.edition.rightsNote}
+          languages={data.languages}
           cite={{
             title: data.edition.title,
             editors: data.edition.editors,
@@ -781,7 +786,7 @@
           <VariantsPanel
             groups={variantGroups}
             onScreen={visibleSegments.length > 0}
-            lang={data.work.language}
+            lang={textLang}
             active={popoverOpen ? activeKeys : []}
             onhover={hoverSites}
             onopen={openSite}
@@ -825,7 +830,7 @@
     bind:open={popoverOpen}
     anchor={popoverAnchor}
     entries={popoverEntries}
-    lang={data.work.language}
+    lang={textLang}
     witnesses={witnessesWithText}
     onwitness={() => {
       witnessOpen = true;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyOps, fromText, sequentialIds, toText, type Op, type Stream } from '@varians/core';
 import { revertOps, salvageOps, wordsOf } from './undo.ts';
 
-const text = (): Stream => fromText('a b c d\ne f', { ids: sequentialIds() });
+const text = (): Stream => fromText('a b c d\ne f', { lang: 'en', ids: sequentialIds() });
 
 describe('revertOps', () => {
   it('brings a text back with one replacement that keeps ids', () => {

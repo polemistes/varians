@@ -21,7 +21,7 @@ const cs = (version: number, userId: string, ops: Op[]): Changeset => ({
 });
 
 describe('authors', () => {
-  const start: Stream = fromText('a b c', { ids: sequentialIds() });
+  const start: Stream = fromText('a b c', { lang: 'en', ids: sequentialIds() });
 
   it('names the ids an operation changes, not the anchors it stands beside', () => {
     expect(

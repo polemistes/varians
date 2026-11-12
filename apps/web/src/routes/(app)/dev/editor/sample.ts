@@ -43,7 +43,7 @@ export function sampleStream(): Stream {
       // A bar divides a word at the end of a line: the first half is joined with the second on the next line.
       const halves = word.split('|');
       halves.forEach((half, h) => {
-        const token: Token = { kind: 'token', id: ids(), form: half };
+        const token: Token = { kind: 'token', id: ids(), lang: 'grc', form: half };
         if (w === 0 && h === 0) token.segment = { segmentId };
         if (readWords) {
           const norm = readWords[w]!.split('|')[h]!;

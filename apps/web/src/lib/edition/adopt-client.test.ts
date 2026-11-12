@@ -24,10 +24,10 @@ function segment(
   witnessTexts: Record<string, string>,
   attachments: Record<number, Attachment[]> = {},
 ) {
-  const edition = fromText(editionText, { ids: sequentialIds('e') });
+  const edition = fromText(editionText, { lang: 'grc', ids: sequentialIds('e') });
   const baseUnits = units(edition, 0, edition.items.length);
   const witnesses = Object.entries(witnessTexts).map(([siglum, text]) => {
-    const s = fromText(text, { ids: sequentialIds(siglum) });
+    const s = fromText(text, { lang: 'grc', ids: sequentialIds(siglum) });
     return { id: siglum, siglum, units: units(s, 0, s.items.length) };
   });
   const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, witnesses);

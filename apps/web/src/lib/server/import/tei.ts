@@ -16,6 +16,7 @@ import {
 import type { Database } from '@varians/db';
 import { replaceContent } from '../documents/service.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
+import { withLanguage } from './language.ts';
 
 export interface TeiPreview {
   structure: ReturnType<typeof detectStructure>;
@@ -77,10 +78,16 @@ export async function importTeiIntoTranscription(
     xml: string;
     mapping: UnitMapping;
     userId: string | null;
+    /** The language of the text, for words the file gives none (see `withLanguage`). */
+    language?: string | null;
   },
 ): Promise<TeiImportResult> {
   const work = await schemeOfWork(db, input.workId);
-  const result = importTei(input.xml);
+  const read = importTei(input.xml);
+  const result = {
+    ...read,
+    stream: withLanguage(read.stream, input.language, read.header.language),
+  };
   const { resolved, unresolved } = resolveStarts(result.segmentStarts, input.mapping, work.scheme);
   const labels = await resolveLabels(
     db,

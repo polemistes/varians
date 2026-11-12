@@ -134,7 +134,7 @@ async function clean(): Promise<void> {
 async function lineOf(label: string, text: string): Promise<Stream> {
   const scheme = await schemeOfWork(db, workId);
   const resolved = await resolveLabels(db, scheme, [label]);
-  const line = fromText(text);
+  const line = fromText(text, { lang: 'grc' });
   (line.items[0] as Token).segment = { segmentId: resolved.get(label)!.id };
   return { items: line.items as Item[] };
 }

@@ -5,7 +5,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   applyOps,
-  defaultProfile,
   detectNumbering,
   fromText,
   isBreak,
@@ -32,6 +31,7 @@ import {
 } from '@varians/db';
 import { eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
+import { LanguageMissing } from './import/language.ts';
 import { saveOps, VersionConflict } from './documents/service.ts';
 import {
   deleteTranscription,
@@ -50,6 +50,7 @@ import {
   placeImport,
   appendSources,
   saveSettings,
+  teiPreview,
   type ImportTarget,
 } from './workbench.ts';
 
@@ -89,7 +90,6 @@ beforeAll(async () => {
     slug: `w-${ids.work}`,
     title: 'Iliad',
     schemeId: ids.scheme,
-    profile: defaultProfile('grc'),
   });
   // The owner made the witness and so maintains it.
   await db.insert(witnesses).values({
@@ -128,6 +128,7 @@ function target(
   fromVersion: number,
   replace = false,
   transcriptionId = ids.transcription,
+  language: string | null = 'grc',
 ): ImportTarget {
   return {
     transcriptionId,
@@ -136,6 +137,7 @@ function target(
     userId: ids.owner,
     replace,
     createPages: true,
+    language,
   };
 }
 
@@ -217,7 +219,7 @@ describe('placeImport', () => {
         { kind: 'token', id: 'a', form: 'a' },
       ],
     };
-    const imported = fromText('c d', { ids: sequentialIds('n') });
+    const imported = fromText('c d', { lang: 'en', ids: sequentialIds('n') });
     const unplaced = placeImport(current, imported, {
       replace: false,
       pageOrder: ['p1', 'p2'],
@@ -225,7 +227,7 @@ describe('placeImport', () => {
     });
     expect(shape(unplaced.content)).toBe('u / c d #p1 a');
     expect(unplaced.unplaced).toBe(2);
-    const onPage = placeImport(current, fromText('c d', { ids: sequentialIds('n') }), {
+    const onPage = placeImport(current, fromText('c d', { lang: 'en', ids: sequentialIds('n') }), {
       replace: false,
       placement: { to: 'page', pageId: 'p2' },
       pageOrder: ['p1', 'p2'],
@@ -309,7 +311,9 @@ describe('loadWorkbench', () => {
 
   it('learns any work as the workbench needs it, when one is chosen where text is assigned', async () => {
     const [work] = await workbenchWorks(db, ['no-such-work', ids.work]);
-    expect(work).toMatchObject({ id: ids.work, language: expect.any(String) });
+    expect(work).toMatchObject({ id: ids.work, levels: expect.any(Array) });
+    expect(work).not.toHaveProperty('language');
+    expect(work).not.toHaveProperty('profile');
     expect(work!.levels.map((l) => l.key)).toEqual(['book', 'line']);
     expect(await workbenchWorks(db, ['no-such-work'])).toEqual([]);
   });
@@ -327,6 +331,8 @@ describe('imports', () => {
     });
     expect(first.segments).toBe(2);
     expect(toText(first.content)).toBe(text);
+    // Plain text declares no language: every word has the one given.
+    expect(first.content.items.filter(isToken).every((t) => t.lang === 'grc')).toBe(true);
     const data = await loadWorkbench(db, owner(), ids.transcription);
     expect(data?.works.map((w) => w.id)).toEqual([ids.work]);
     expect(data?.works[0]?.levels.map((l) => l.key)).toEqual(['book', 'line']);
@@ -385,6 +391,43 @@ describe('imports', () => {
     expect((await db.select().from(pages).where(eq(pages.witnessId, ids.witness))).length).toBe(
       pagesBefore,
     );
+  });
+
+  it('gives the words the language given, keeps those the file marks as another, and refuses an import that would leave a word without one', async () => {
+    await expect(
+      importPlainTextInto(db, target(await version(), false, ids.transcription, null), {
+        text: 'arma virumque',
+        pattern: null,
+        workId: null,
+      }),
+    ).rejects.toBeInstanceOf(LanguageMissing);
+    const none = `<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body><ab>arma virumque</ab></body></text></TEI>`;
+    await expect(
+      importTeiInto(db, target(await version(), true, ids.transcription, null), {
+        xml: none,
+        workId: null,
+        mapping: {},
+        as: 'transcript',
+      }),
+    ).rejects.toBeInstanceOf(LanguageMissing);
+    // The file declares Greek, with a word in Latin; the language chosen is that of the text as a whole.
+    const declared = `<TEI xmlns="http://www.tei-c.org/ns/1.0"><text xml:lang="grc"><body><ab>μῆνιν <foreign xml:lang="la">arma</foreign> ἄειδε</ab></body></text></TEI>`;
+    const kept = await importTeiInto(db, target(await version(), true, ids.transcription, null), {
+      xml: declared,
+      workId: null,
+      mapping: {},
+      as: 'transcript',
+    });
+    expect(kept.content.items.filter(isToken).map((t) => t.lang)).toEqual(['grc', 'la', 'grc']);
+    const chosen = await importTeiInto(db, target(kept.version, true, ids.transcription, 'el'), {
+      xml: declared,
+      workId: null,
+      mapping: {},
+      as: 'transcript',
+    });
+    expect(chosen.content.items.filter(isToken).map((t) => t.lang)).toEqual(['el', 'la', 'el']);
+    const preview = await teiPreview(db, null, declared);
+    expect(preview.language).toBe('grc');
   });
 
   it('refuses an import against an old version', async () => {

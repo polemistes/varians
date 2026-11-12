@@ -5,7 +5,7 @@ import { diffStates } from './diff.ts';
 import { addCounts, countChanges, countOps, describeCounts, emptyCounts } from './summary.ts';
 
 describe('counting changes', () => {
-  const before = fromText('a b c\nd e', { ids: sequentialIds() });
+  const before = fromText('a b c\nd e', { lang: 'en', ids: sequentialIds() });
 
   it('counts words by what happened to them, and breaks apart', () => {
     const after = applyOps(before, [

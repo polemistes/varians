@@ -7,7 +7,7 @@
    */
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
-  import { detectNumbering } from '@varians/core';
+  import { detectNumbering, leidenPlusLanguage } from '@varians/core';
   import { untrack } from 'svelte';
   import { UNPLACED } from '$lib/workbench/pages';
   import {
@@ -26,6 +26,7 @@
     toasts,
   } from '$lib/components/ui';
   import { workbench as t } from '$lib/strings/workbench';
+  import ImportLanguage from './ImportLanguage.svelte';
   import WorkField from './WorkField.svelte';
   import type { Workbench } from './workbench.svelte';
 
@@ -45,6 +46,7 @@
     words: number;
     pageBreaks: number;
     title: string | null;
+    language: string | null;
     warnings: string[];
   }
 
@@ -92,6 +94,11 @@
 
   // Leiden
   let leiden = $state('');
+  /** The language Leiden+ names at its head. */
+  const leidenDeclared = $derived(leidenPlusLanguage(leiden));
+
+  /** The language of the text in each tab, as chosen there: none to begin with. */
+  let languages = $state<Record<string, string>>({ tei: '', text: '', leiden: '', layout: '' });
 
   // PAGE and ALTO
   let layoutFiles = $state<FileList | undefined>();
@@ -146,6 +153,7 @@
     formData.set('workId', workId);
     formData.set('replace', replace && !empty ? 'true' : 'false');
     formData.set('placement', placement);
+    formData.set('language', languages[tab] ?? '');
     if (!isPreview && transcript) formData.set('source', source);
     if (action.search.includes('Tei') || isPreview) formData.set('as', teiAs);
     // Before the first reading the server proposes the mapping; afterwards it is the one chosen here.
@@ -210,7 +218,11 @@
   ];
 </script>
 
-{#snippet common()}
+{#snippet common(panel: string)}
+  <ImportLanguage
+    bind:value={languages[panel]}
+    declared={panel === 'tei' ? preview?.language : panel === 'leiden' ? leidenDeclared : null}
+  />
   {#if tab !== 'leiden' && tab !== 'layout'}
     <WorkField {wb} bind:value={workId} none={t.importer.noWork} />
   {/if}
@@ -294,7 +306,7 @@
             </label>
           {/each}
         </fieldset>
-        {@render common()}
+        {@render common('tei')}
         <div>
           <button
             type="submit"
@@ -434,7 +446,7 @@
             >{t.importer.text.hyphens}</Checkbox
           >
         </div>
-        {@render common()}
+        {@render common('text')}
         {@render outcome()}
         <div class="flex justify-end gap-2">
           <Button variant="ghost" onclick={() => (open = false)}>{t.importer.cancel}</Button>
@@ -459,7 +471,7 @@
           aria-label={t.importer.file}
           onchange={(e) => loadInto(e.currentTarget.files, (v) => (leiden = v))}
         />
-        {@render common()}
+        {@render common('leiden')}
         {@render outcome()}
         <div class="flex justify-end gap-2">
           <Button variant="ghost" onclick={() => (open = false)}>{t.importer.cancel}</Button>
@@ -493,7 +505,7 @@
         <p class="text-xs text-ink-soft">
           {wb.canMaintainWitness ? t.importer.layout.createPages : t.importer.layout.noCreatePages}
         </p>
-        {@render common()}
+        {@render common('layout')}
         {@render outcome()}
         <div class="flex justify-end gap-2">
           <Button variant="ghost" onclick={() => (open = false)}>{t.importer.cancel}</Button>

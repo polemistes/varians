@@ -20,11 +20,11 @@ function segment(
   witnesses: Record<string, string>,
   extra: Partial<SegmentViewClient> = {},
 ): SegmentViewClient {
-  const stream = fromText(editionText, { ids: sequentialIds(`${segmentId}e`) });
+  const stream = fromText(editionText, { lang: 'grc', ids: sequentialIds(`${segmentId}e`) });
   (stream.items[0] as Token).segment = { segmentId };
   const baseUnits = units(stream, 0, stream.items.length);
   const texts = Object.entries(witnesses).map(([siglum, text]) => {
-    const s = fromText(text, { ids: sequentialIds(`${segmentId}${siglum}`) });
+    const s = fromText(text, { lang: 'grc', ids: sequentialIds(`${segmentId}${siglum}`) });
     return { id: siglum, siglum, units: units(s, 0, s.items.length) };
   });
   const collation = collate({ id: 'E', siglum: 'ed.', units: baseUnits }, texts);

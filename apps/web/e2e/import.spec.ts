@@ -87,7 +87,6 @@ test('a TEI file is taken as a text to start from, or as a transcript of the wit
   await page.waitForLoadState('networkidle');
   await page.locator('input[name=title]').fill(workTitle);
   await page.locator('input[name=author]').fill('Aristophanes');
-  await page.locator('select[name=language]').selectOption('grc');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForURL(
     (url) => /^\/works\/[^/]+$/.test(url.pathname) && url.pathname !== '/works/new',

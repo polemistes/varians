@@ -31,7 +31,7 @@ describe('resetHistory', () => {
 describe('caretAfterViewChange', () => {
   // Page p1: `ΜΗΝΙΝ ΑΕΙΔΕ`, page p2: `ΘΕΑ`; ΑΕΙΔΕ is read as ἄειδε.
   function paged() {
-    const s = fromText('\nΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ', { ids: sequentialIds() });
+    const s = fromText('\nΜΗΝΙΝ ΑΕΙΔΕ\nΘΕΑ', { lang: 'grc', ids: sequentialIds() });
     (s.items[0] as Break).type = 'page';
     (s.items[0] as Break).pageId = 'p1';
     (s.items[3] as Break).type = 'page';

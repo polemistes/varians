@@ -121,7 +121,7 @@ test('selected words are mapped to a box drawn on the facsimile', async ({ page 
   await pool.end();
   const items: Item[] = [
     { kind: 'break', id: newId(), type: 'page', pageId: witnessPage!.id },
-    ...fromText('arma virumque cano').items,
+    ...fromText('arma virumque cano', { lang: 'la' }).items,
   ];
   const response = await page.request.post(`/api/documents/transcription/${transcriptionId}/ops`, {
     data: { fromVersion: 0, ops: [{ t: 'insert', after: null, items }] },

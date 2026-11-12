@@ -371,7 +371,7 @@ async function collation(c: Context, keepCache: boolean): Promise<Collated> {
   const times: { id: string; ms: number; texts: number; units: number }[] = [];
   for (const { id, inputs } of gather.result) {
     const start = performance.now();
-    collate(inputs.base, inputs.witnesses, { fold: context.profile.fold });
+    collate(inputs.base, inputs.witnesses);
     times.push({
       id,
       ms: performance.now() - start,
@@ -412,10 +412,7 @@ async function collation(c: Context, keepCache: boolean): Promise<Collated> {
     collatePassages(
       { id: context.edition.id, siglum: 'ed.', stream: context.edition.content },
       streams,
-      {
-        fold: context.profile.fold,
-        ...(context.segmentKeys ? { segmentKeys: context.segmentKeys } : {}),
-      },
+      context.segmentKeys ? { segmentKeys: context.segmentKeys } : {},
     ),
   );
   report(

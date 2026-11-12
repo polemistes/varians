@@ -11,7 +11,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { SCHEME_PRESETS, defaultProfile, newId, type Item, type Stream } from '@varians/core';
+import { SCHEME_PRESETS, newId, type Item, type Stream } from '@varians/core';
 import {
   createDatabase,
   editionSigla,
@@ -84,9 +84,7 @@ async function build(userId: string) {
     id: workId,
     slug: WORK,
     title: 'Passages',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const segments = await resolveLabels(db, await schemeOfWork(db, workId), LABELS);

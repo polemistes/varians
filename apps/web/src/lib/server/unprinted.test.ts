@@ -11,7 +11,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   SCHEME_PRESETS,
   additionIn,
-  defaultProfile,
   fromText,
   newId,
   segmentAt,
@@ -83,7 +82,7 @@ function stream(lines: [label: string, text: string | null][]): Stream {
       items.push({ kind: 'object', id: newId(), type: 'gap', attrs: { reason: 'lost' } });
       return;
     }
-    const line = fromText(text);
+    const line = fromText(text, { lang: 'grc' });
     (line.items[0] as Token).segment = { segmentId: segmentIdOf(label) };
     items.push(...line.items);
   });
@@ -153,9 +152,7 @@ beforeAll(async () => {
     id: workId,
     slug: WORK,
     title: 'Unprinted lines',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const segments = await resolveLabels(db, await schemeOfWork(db, workId), Object.keys(LINES));

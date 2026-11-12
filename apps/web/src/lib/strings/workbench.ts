@@ -444,6 +444,12 @@ export const workbench = {
     kindTranscriptHint:
       'Its features and pages are kept. What its editor supplied is left out, and the gap kept.',
     noWork: 'No work: the text comes in without segment labels.',
+    /** The language of the text imported: never chosen beforehand, filled from a file that declares it. */
+    language: 'Language',
+    languageOther: 'Other',
+    languageCode: 'Language Code',
+    languageCodeHint: 'A BCP 47 language tag, such as grc, la or hbo.',
+    languageRequired: 'Choose the language of the text.',
     file: 'File',
     or: 'or',
     tei: {

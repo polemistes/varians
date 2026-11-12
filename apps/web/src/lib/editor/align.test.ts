@@ -4,7 +4,7 @@ import { alignLedger, minimalChange } from './align.ts';
 import { render, spanOf } from './bridge.ts';
 
 function sample(): Stream {
-  const s = fromText('the quick fox\njumps over', { ids: sequentialIds() });
+  const s = fromText('the quick fox\njumps over', { lang: 'en', ids: sequentialIds() });
   s.items.splice(2, 0, { kind: 'object', id: 'g1', type: 'gap' });
   return s;
 }
@@ -38,7 +38,7 @@ describe('alignLedger', () => {
   });
 
   it('accepts a read form of several words with the document whitespace between them', () => {
-    const s = fromText('a b', { ids: sequentialIds() });
+    const s = fromText('a b', { lang: 'en', ids: sequentialIds() });
     (s.items[0] as { norm?: string }).norm = 'x y';
     const ledger = render(s, 'read');
     expect(ledger.text).toBe('x y b');

@@ -21,7 +21,6 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import {
   SCHEME_PRESETS,
-  defaultProfile,
   fromText,
   newId,
   type Item,
@@ -97,9 +96,7 @@ async function build(userId: string) {
     id: workId,
     slug: WORK,
     title: 'Lines in the reader',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const segments = await resolveLabels(db, await schemeOfWork(db, workId), ALL);
@@ -110,7 +107,7 @@ async function build(userId: string) {
       const kind = paragraphs[label];
       if (kind) items.push({ kind: 'break', id: newId(), type: 'paragraph', lineation: kind });
       else if (k > 0) items.push({ kind: 'break', id: newId(), type: 'line' });
-      const line = fromText(LINES[label]!);
+      const line = fromText(LINES[label]!, { lang: 'grc' });
       (line.items[0] as Token).segment = { segmentId: segments.get(label)!.id };
       items.push(...line.items);
     });

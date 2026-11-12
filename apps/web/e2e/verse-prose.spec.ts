@@ -13,7 +13,6 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import {
   SCHEME_PRESETS,
-  defaultProfile,
   deriveEdition,
   fromText,
   newId,
@@ -83,9 +82,7 @@ async function build(userId: string) {
     id: workId,
     slug: WORK,
     title: 'Verse and prose',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const labels = LINES.flatMap((line) => (line.label ? [line.label] : []));
@@ -94,7 +91,7 @@ async function build(userId: string) {
   const items: Item[] = [];
   LINES.forEach((line, k) => {
     if (k > 0) items.push({ kind: 'break', id: newId(), type: 'line' });
-    const words = fromText(line.text.replaceAll('+', '')).items;
+    const words = fromText(line.text.replaceAll('+', ''), { lang: 'grc' }).items;
     if (line.text.endsWith('+')) (words[words.length - 1] as Token).joinNext = true;
     if (line.label) (words[0] as Token).segment = { segmentId: segments.get(line.label)!.id };
     items.push(...words);

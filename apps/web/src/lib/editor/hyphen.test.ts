@@ -8,7 +8,7 @@ import { ChangeSet } from '@codemirror/state';
 import type { Token } from '@varians/core';
 
 function setup(text: string, options: { hyphenJoins?: boolean } = {}) {
-  const stream = fromText(text, { ids: sequentialIds(), ...options });
+  const stream = fromText(text, { lang: 'grc', ids: sequentialIds(), ...options });
   const ledger = render(stream, 'written');
   const byId = new Map<Id, Item>(stream.items.map((i) => [i.id, i]));
   return { stream, ledger, byId };

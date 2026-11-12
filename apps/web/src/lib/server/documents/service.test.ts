@@ -65,7 +65,6 @@ beforeAll(async () => {
     slug: `w-${ids.work}`,
     title: 'W',
     schemeId: ids.scheme,
-    profile: defaultProfile('grc'),
   });
   await db.insert(segments).values({
     id: ids.segment,
@@ -92,7 +91,7 @@ afterAll(async () => {
 
 describe('saveOps', () => {
   it('applies operations, bumps the version and records the changeset with its reverse', async () => {
-    const stream: Stream = fromText('μῆνιν ἄειδε', { ids: sequentialIds('a') });
+    const stream: Stream = fromText('μῆνιν ἄειδε', { lang: 'grc', ids: sequentialIds('a') });
     (stream.items[0] as { segment?: unknown }).segment = { segmentId: ids.segment };
     const first = await saveOps(db, 'transcription', ids.transcription, ids.user, 0, [
       { t: 'insert', after: null, items: stream.items },

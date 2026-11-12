@@ -12,12 +12,12 @@ import {
 import { buildModel, editModel, reconcileModel, withForm, type Model } from './model.ts';
 
 function sample(): Stream {
-  const s = fromText('one two\nthree', { ids: sequentialIds() });
+  const s = fromText('one two\nthree', { lang: 'en', ids: sequentialIds() });
   return s;
 }
 
 function paged(): Stream {
-  const s = fromText('x\na b\nc d', { ids: sequentialIds() });
+  const s = fromText('x\na b\nc d', { lang: 'en', ids: sequentialIds() });
   (s.items[1] as Break).type = 'page';
   (s.items[1] as Break).pageId = 'p1';
   (s.items[4] as Break).type = 'page';
@@ -105,7 +105,7 @@ describe('reconcileModel', () => {
   });
 
   it('clears the join when the lines are joined again', () => {
-    const whole = fromText('on-\ne two', { ids: sequentialIds(), hyphenJoins: true });
+    const whole = fromText('on-\ne two', { lang: 'en', ids: sequentialIds(), hyphenJoins: true });
     const model = buildModel(whole, { form: 'written' });
     expect(model.ledger.text).toBe('on\ne two');
     const back = change(model, 2, 3, '');
@@ -159,7 +159,7 @@ describe('reconcileModel', () => {
 
 describe('typing on an empty line', () => {
   it('puts the new word after the item before the line, not at the end of the stream', () => {
-    const whole = fromText('a\n\nb', { ids: sequentialIds() });
+    const whole = fromText('a\n\nb', { lang: 'en', ids: sequentialIds() });
     const model = buildModel(whole, { form: 'written' });
     expect(model.ledger.text).toBe('a\n\nb');
     const typed = change(model, 2, 2, 'x');

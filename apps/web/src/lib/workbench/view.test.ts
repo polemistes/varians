@@ -22,12 +22,12 @@ describe('floatingPosition', () => {
 
 describe('lineCount and describeSetAside', () => {
   it('counts lines with words', () => {
-    expect(lineCount(fromText('a b\n\nc', { ids: sequentialIds() }))).toBe(2);
+    expect(lineCount(fromText('a b\n\nc', { lang: 'en', ids: sequentialIds() }))).toBe(2);
     expect(lineCount({ items: [] })).toBe(0);
   });
 
   it('says what a conflict set aside', () => {
-    const typed = fromText('νέον', { ids: sequentialIds('n') });
+    const typed = fromText('νέον', { lang: 'grc', ids: sequentialIds('n') });
     const out = describeSetAside([
       { t: 'insert', after: 'x', items: typed.items },
       { t: 'set', id: 'a', fields: { norm: 'ἄειδε' } },
@@ -40,7 +40,7 @@ describe('lineCount and describeSetAside', () => {
 
 describe('asWrittenLines', () => {
   it('runs the words of a line together, keeping recorded separators', () => {
-    const s = fromText('ΜΗΝΙΝ ΑΕΙΔΕ ΘΕΑ\nΠΗΛΗΙΑΔΕΩ', { ids: sequentialIds() });
+    const s = fromText('ΜΗΝΙΝ ΑΕΙΔΕ ΘΕΑ\nΠΗΛΗΙΑΔΕΩ', { lang: 'grc', ids: sequentialIds() });
     (s.items[2] as Token).sep = 'interpunct';
     expect(asWrittenLines(s)).toEqual(['ΜΗΝΙΝΑΕΙΔΕ·ΘΕΑ', 'ΠΗΛΗΙΑΔΕΩ']);
   });

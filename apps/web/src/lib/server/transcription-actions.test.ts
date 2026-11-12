@@ -128,7 +128,6 @@ beforeAll(async () => {
     db,
     {
       title: `Transcript work ${tag}`,
-      language: 'grc',
       scheme: { preset: SCHEME_PRESETS[0]!.name },
     },
     owner.id,

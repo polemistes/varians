@@ -60,6 +60,8 @@
     matches: Set<string>;
     hit: boolean;
     currentHit: boolean;
+    /** The language of the text around the line: a word in another says its own. */
+    textLang?: string | undefined;
   }
 
   let {
@@ -89,6 +91,7 @@
     matches,
     hit,
     currentHit,
+    textLang,
   }: Props = $props();
 
   /**
@@ -104,6 +107,14 @@
     );
   });
   const flow = $derived(speakers.length ? pieces.filter((p) => !speakers.includes(p)) : pieces);
+  /** The language of each word of the line. */
+  const langOf = $derived(
+    new Map(
+      line.items.flatMap((item) =>
+        item.kind === 'token' ? [[item.id, item.lang] as [string, string | undefined]] : [],
+      ),
+    ),
+  );
   const dir = $derived(line.rend === 'rtl' || line.rend === 'ltr' ? line.rend : 'auto');
   const heading = $derived(
     flow.length > 0 && flow.every((p) => p.kind === 'paratext' && p.type === 'head'),
@@ -196,6 +207,7 @@
               pointsBefore.get(piece.id)!,
             )}{/if}{piece.before}<!-- The word is a button exactly when it takes focus. --><!-- svelte-ignore a11y_no_noninteractive_tabindex --><span
             data-token={piece.id}
+            lang={langOf.get(piece.id) !== textLang ? langOf.get(piece.id) : undefined}
             data-sites={keys}
             data-focus={!focusLine &&
             focusSegment !== null &&

@@ -8,6 +8,7 @@
 
 import {
   fold,
+  unitFold,
   isObj,
   isToken,
   runsBySegment,
@@ -16,7 +17,6 @@ import {
   type Collation,
   type CollationState,
   type CollationText,
-  type NormalizationProfile,
   type PassageInputs,
   type SegmentRun,
   type SiteKind,
@@ -31,7 +31,6 @@ import {
   transcriptionSegments,
   transcriptions,
   witnesses,
-  works,
   type Database,
   type WitnessHand,
 } from '@varians/db';
@@ -43,7 +42,6 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 export interface EditionContext {
   edition: { id: string; workId: string; content: Stream; version: number };
-  profile: NormalizationProfile;
   /** The conspectus in order: siglum, witness, transcription (null when only reported readings), and the states collated under sigla of their own. */
   sigla: ConspectusEntry[];
   /** The hands of the witnesses named, by witness id, for the states that name a hand. */
@@ -116,9 +114,8 @@ function sortedByKey(segmentKeys: ReadonlyMap<string, string>): [string, string]
 export async function loadEditionContext(db: Database, editionId: string): Promise<EditionContext> {
   const [[meta], text] = await Promise.all([
     db
-      .select({ id: editions.id, workId: editions.workId, profile: works.profile })
+      .select({ id: editions.id, workId: editions.workId })
       .from(editions)
-      .innerJoin(works, eq(works.id, editions.workId))
       .where(eq(editions.id, editionId)),
     loadEditionText(db, editionId),
   ]);
@@ -157,7 +154,6 @@ export async function loadEditionContext(db: Database, editionId: string): Promi
   let coverage: Map<string, Coverage> | undefined;
   return {
     edition: { id: row.id, workId: row.workId, content: row.content, version: row.version },
-    profile: row.profile,
     segmentKeys,
     get coverage() {
       if (!coverage) {
@@ -518,8 +514,15 @@ export const COLLATION_VERSION = 'collation-v16';
 /** A text as the hashes describe it: everything collation reads of it. */
 function describeText(t: CollationText): string {
   const away = (t.notThere ?? []).map((r) => `${r.from}-${r.to}`).join(',');
-  return `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${away}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}#${u.tokenIds.join(',')}@${u.segmentId ?? ''}`)).join(' ')}`;
+  return `${t.id}|${t.siglum}|${t.present ? 'p' : ''}|${away}|${t.units.map((u) => (u.gap ? '[gap]' : `${u.text}:${u.lang ?? ''}#${u.tokenIds.join(',')}@${u.segmentId ?? ''}`)).join(' ')}`;
 }
+
+/**
+ * What the hashes say of the fold: every word is folded by its own language,
+ * which the description of each text gives. A fixed string, so that no row
+ * cached when one fold served the whole edition is read against this one.
+ */
+const FOLD_KEY = 'fold-by-language';
 
 /** A hash of everything a segment's collation reads. */
 export function inputHash(
@@ -527,9 +530,10 @@ export function inputHash(
   base: CollationText,
   witnesses: CollationText[],
 ): string {
+  void context;
   const hash = createHash('sha256');
   hash.update(COLLATION_VERSION);
-  hash.update(JSON.stringify(context.profile.fold));
+  hash.update(FOLD_KEY);
   hash.update(describeText(base));
   for (const w of witnesses) hash.update('\n' + describeText(w));
   return hash.digest('hex').slice(0, 32);
@@ -538,8 +542,9 @@ export function inputHash(
 /** A hash of everything a passage's collation reads: its segments, where each begins, and every text over them. */
 export function passageHash(context: EditionContext, inputs: PassageInputs): string {
   const hash = createHash('sha256');
+  void context;
   hash.update(`${COLLATION_VERSION}:passage`);
-  hash.update(JSON.stringify(context.profile.fold));
+  hash.update(FOLD_KEY);
   hash.update(
     inputs.segments.map((s) => `${s.segmentId}:${s.from}-${s.to}${s.printed ? '' : 'u'}`).join(','),
   );
@@ -590,9 +595,9 @@ export async function coverage(
   return rows.map((r) => ({ ...r, transcriptionIds: [...(bySegment.get(r.segmentId) ?? [])] }));
 }
 
-/** The fold text of a transcription's segment, for quick comparisons and search. */
-export function foldOf(profile: NormalizationProfile, unitsOf: Unit[]): string {
-  return unitsOf.map((u) => (u.gap ? '[...]' : fold(u.text, profile.fold))).join(' ');
+/** The fold text of a transcription's segment, for quick comparisons and search: each word by its own language. */
+export function foldOf(unitsOf: Unit[]): string {
+  return unitsOf.map((u) => (u.gap ? '[...]' : fold(u.text, unitFold(u.lang)))).join(' ');
 }
 
 export { witnesses };

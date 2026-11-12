@@ -71,7 +71,6 @@ export interface WorkRow {
   slug: string;
   title: string;
   author: string | null;
-  language: string;
   /** Who added it, for the rights of a list; never sent to the browser. */
   createdBy: string | null;
   createdByName: string | null;
@@ -204,7 +203,6 @@ export async function searchWorks(db: Database, query: string): Promise<WorkRow[
       slug: works.slug,
       title: works.title,
       author: works.author,
-      language: works.language,
       createdBy: works.createdBy,
       createdByName: creator.name,
       createdAt: works.createdAt,

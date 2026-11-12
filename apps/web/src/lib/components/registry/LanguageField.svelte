@@ -13,17 +13,18 @@
     error?: string[] | string | null;
   }
 
-  let { value = 'grc', other = false, error }: Props = $props();
+  let { value = '', other = false, error }: Props = $props();
 
   const s = registry.work;
   const options = [
+    { value: '', label: '' },
     ...LANGUAGES.map((l) => ({ value: l.code, label: `${l.name} (${l.code})` })),
     { value: LANGUAGE_OTHER, label: s.languageOther },
   ];
 
   // The initial values only; the controls own them from here on.
   let choice = $state(
-    untrack(() => (other || (value && !isListedLanguage(value)) ? LANGUAGE_OTHER : value || 'grc')),
+    untrack(() => (other || (value && !isListedLanguage(value)) ? LANGUAGE_OTHER : value)),
   );
   let code = $state(untrack(() => (choice === LANGUAGE_OTHER ? value : '')));
 </script>

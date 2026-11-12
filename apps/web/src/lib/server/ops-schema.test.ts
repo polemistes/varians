@@ -4,7 +4,7 @@ import { parseOps } from './ops-schema.ts';
 
 describe('parseOps', () => {
   it('accepts what the editors send', () => {
-    const items = fromText('μῆνιν ἄειδε\nθεὰ', { ids: sequentialIds() }).items;
+    const items = fromText('μῆνιν ἄειδε\nθεὰ', { lang: 'grc', ids: sequentialIds() }).items;
     const result = parseOps([
       { t: 'insert', after: null, items },
       {
@@ -33,6 +33,20 @@ describe('parseOps', () => {
       },
     ]);
     expect(result.ok).toBe(true);
+  });
+
+  it('takes a word with a language or, for now, without one, and a set of its language', () => {
+    const word = { kind: 'token', id: 'w', form: 'arma' };
+    expect(parseOps([{ t: 'insert', after: null, items: [word] }]).ok).toBe(true);
+    expect(parseOps([{ t: 'insert', after: null, items: [{ ...word, lang: 'la' }] }]).ok).toBe(
+      true,
+    );
+    expect(parseOps([{ t: 'replace', ids: ['x'], items: [{ ...word, lang: 'la' }] }]).ok).toBe(
+      true,
+    );
+    expect(parseOps([{ t: 'set', id: 'w', fields: { lang: 'grc' } }]).ok).toBe(true);
+    expect(parseOps([{ t: 'set', id: 'w', fields: { lang: 3 } }]).ok).toBe(false);
+    expect(parseOps([{ t: 'insert', after: null, items: [{ ...word, lang: '' }] }]).ok).toBe(false);
   });
 
   it('refuses unknown fields, malformed items and unknown operations', () => {

@@ -10,7 +10,6 @@ import type { WitnessHand } from '@varians/db';
 import { registry as t } from '$lib/strings/registry';
 import { CUSTOM_SCHEME, LANGUAGE_OTHER } from './constants';
 import { parseIdentifiers, type CanonicalIdentifier } from './identifiers';
-import { LANGUAGE_CODE } from './languages';
 import { parseLevels, schemeProblems } from './scheme';
 import type { Dependents } from './types';
 import {
@@ -67,42 +66,25 @@ function run<T>(
 const workSchema = z.object({
   title: z.string().trim().min(1, t.work.titleRequired).max(200, t.work.titleTooLong),
   author: optional(200, t.work.tooLong),
-  language: z
-    .string()
-    .trim()
-    .min(1, t.work.languageRequired)
-    .max(40, t.work.languageInvalid)
-    .regex(LANGUAGE_CODE, t.work.languageInvalid),
   identifier: optional(300, t.work.tooLong),
   description: optional(5000, t.work.tooLong),
 });
 
 export type WorkForm = z.infer<typeof workSchema> & { identifiers: CanonicalIdentifier[] };
 
-const WORK_FIELDS = [
-  'title',
-  'author',
-  'language',
-  'languageCode',
-  'identifier',
-  'identifiers',
-  'description',
-] as const;
+const WORK_FIELDS = ['title', 'author', 'identifier', 'identifiers', 'description'] as const;
 
 /**
- * Title, author, language (a listed code, or Other with a code typed), the
- * primary identifier, the further identifiers, description.
+ * Title, author, the primary identifier, the further identifiers,
+ * description. A work has no language: its texts' words have theirs.
  */
 export function parseWorkForm(form: FormData): Parsed<WorkForm> {
-  const choice = field(form, 'language');
-  const language = choice === LANGUAGE_OTHER ? field(form, 'languageCode') : choice;
   const identifiers = parseIdentifiers(field(form, 'identifiers'));
   const parsed = run(
     workSchema,
     {
       title: field(form, 'title'),
       author: field(form, 'author'),
-      language,
       identifier: field(form, 'identifier'),
       description: field(form, 'description'),
     },

@@ -7,6 +7,8 @@ import type { Op } from '@varians/core';
 import { z } from 'zod';
 
 const id = z.string().min(1).max(64);
+/** A word's language, a BCP 47 tag. A word may yet come without one, until the editor gives every word it makes its own. */
+const lang = z.string().min(1).max(40);
 const short = z.string().max(2000);
 const attrValue = z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]);
 const attrs = z
@@ -38,6 +40,7 @@ const token = z
   .object({
     kind: z.literal('token'),
     id,
+    lang: lang.optional(),
     form: short,
     norm: short.optional(),
     unchecked: z.boolean().optional(),
@@ -76,6 +79,7 @@ export const itemSchema = z.discriminatedUnion('kind', [token, brk, obj]);
 
 /** The fields a `set` may change, by name; null removes a field. */
 const settable: Record<string, z.ZodType> = {
+  lang,
   form: short,
   norm: short,
   unchecked: z.boolean(),

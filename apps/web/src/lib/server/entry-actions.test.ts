@@ -111,7 +111,7 @@ beforeAll(async () => {
   );
   const work = await createWork(
     db,
-    { title: `Entry work ${tag}`, language: 'grc', scheme: { preset: SCHEME_PRESETS[0]!.name } },
+    { title: `Entry work ${tag}`, scheme: { preset: SCHEME_PRESETS[0]!.name } },
     creator.id,
   );
   ids.work = work.id;
@@ -334,7 +334,7 @@ describe('deleting from a list and from the page', () => {
     await db.delete(editions).where(inArray(editions.id, [ids.draft, ids.published]));
     const gone = await createWork(
       db,
-      { title: `Doomed work ${tag}`, language: 'grc', scheme: { preset: SCHEME_PRESETS[0]!.name } },
+      { title: `Doomed work ${tag}`, scheme: { preset: SCHEME_PRESETS[0]!.name } },
       creator.id,
     );
     const deleted = await run(workEdit.delete, creator, {
@@ -351,7 +351,7 @@ describe('deleting from a list and from the page', () => {
   it('leads to the front page from the work’s own page', async () => {
     const gone = await createWork(
       db,
-      { title: `Doomed too ${tag}`, language: 'grc', scheme: { preset: SCHEME_PRESETS[0]!.name } },
+      { title: `Doomed too ${tag}`, scheme: { preset: SCHEME_PRESETS[0]!.name } },
       creator.id,
     );
     expect(await run(workEdit.delete, creator, { slug: gone.slug, fields: {} })).toEqual({

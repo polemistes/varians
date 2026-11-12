@@ -35,7 +35,13 @@ function build(start: Stream, steps: Op[][]): { log: Changeset[]; states: Stream
 describe('walkBack', () => {
   const start: Stream = { items: [] };
   const { log, states } = build(start, [
-    [{ t: 'insert', after: null, items: fromText('a b c', { ids: sequentialIds() }).items }],
+    [
+      {
+        t: 'insert',
+        after: null,
+        items: fromText('a b c', { lang: 'en', ids: sequentialIds() }).items,
+      },
+    ],
     [{ t: 'set', id: 't2', fields: { form: 'B' } }],
     [{ t: 'delete', ids: ['t3'] }],
     [{ t: 'insert', after: 't1', items: [{ kind: 'token', id: 'n', form: 'x' }] }],

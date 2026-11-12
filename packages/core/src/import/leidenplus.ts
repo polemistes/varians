@@ -775,6 +775,12 @@ function optionXml(
   }
 }
 
+/** The language a Leiden+ text names at its head, or undefined where it names none or names it undetermined. */
+export function leidenPlusLanguage(text: string): string | undefined {
+  const head = /^\s*<S=\.([A-Za-z-]+)/u.exec(text)?.[1];
+  return head === UNDETERMINED_LANGUAGE ? undefined : head;
+}
+
 /** Whether a text is Leiden+: it names its language as Leiden+ does, or holds a block of it. */
 export function isLeidenPlus(text: string): boolean {
   return /^\s*<S=\./u.test(text) || /<=[\s\S]*=>/u.test(text);

@@ -5,6 +5,7 @@
    */
   import { page } from '$app/state';
   import { LocalDate } from '$lib/components/ui';
+  import { languageName } from '$lib/registry/languages';
   import type { ReaderData } from '$lib/reader/types';
   import { and } from '$lib/strings/names';
   import { reader as r } from '$lib/strings/reader';
@@ -21,6 +22,8 @@
     rightsNote?: string | null;
     /** What a citation of the version shown names. */
     cite?: { title: string; editors: string[]; slug: string; mode: ReaderData['mode'] } | null;
+    /** The languages the text contains, those of more words first. */
+    languages?: string[];
   }
 
   let {
@@ -31,6 +34,7 @@
     licence = null,
     rightsNote = null,
     cite = null,
+    languages = [],
   }: Props = $props();
   const e = recordActions.edition;
 
@@ -80,6 +84,9 @@
         >
         (<LocalDate date={version.at} />{version.current ? `, ${r.colophon.current}` : ''}){/each}
     </p>
+  {/if}
+  {#if languages.length}
+    <p class="mt-2">{r.colophon.languages}: {languages.map(languageName).join(', ')}</p>
   {/if}
   {#if sources}
     <p class="mt-2 whitespace-pre-line">{r.colophon.sources}: {sources}</p>

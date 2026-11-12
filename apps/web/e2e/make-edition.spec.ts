@@ -95,7 +95,6 @@ test('an edition made from scratch on one page, which stays as Edition Settings'
   await expect(workWindow).toContainText(reg.work.publicNote);
   await workWindow.locator('input[name=title]').fill(workTitle);
   await workWindow.locator('input[name=author]').fill('Anonymus');
-  await workWindow.locator('select[name=language]').selectOption('la');
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${SHOTS}/3-add-new-work.png` });
   await workWindow.getByRole('button', { name: ed.save, exact: true }).click();

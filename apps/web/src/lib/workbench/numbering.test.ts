@@ -18,7 +18,7 @@ const bookLine: Scheme = {
 
 describe('lineStarts', () => {
   // t1 t2 / (empty) / t5 t6 / t8 / t10 t11
-  const page = () => fromText('a b\n\nc d\ne\nf g', { ids: sequentialIds() });
+  const page = () => fromText('a b\n\nc d\ne\nf g', { lang: 'en', ids: sequentialIds() });
 
   it('takes the first word of each line from the caret line to the end, passing empty lines', () => {
     expect(lineStarts(page(), 't2')).toEqual(['t1', 't5', 't8', 't10']);
@@ -47,7 +47,7 @@ describe('numbering', () => {
   });
 
   it('makes one set operation per line', () => {
-    const s = fromText('a b\nc d', { ids: sequentialIds() });
+    const s = fromText('a b\nc d', { lang: 'en', ids: sequentialIds() });
     const ops = numberingOps(lineStarts(s, 't1'), ['s1', 's2']);
     const after = applyOps(s, ops).stream;
     expect((after.items[0] as Token).segment).toEqual({ segmentId: 's1' });

@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isRedirect } from '@sveltejs/kit';
-import { defaultProfile, newId } from '@varians/core';
+import { newId } from '@varians/core';
 import {
   createDatabase,
   editionCollaborators,
@@ -127,7 +127,6 @@ beforeAll(async () => {
     slug: `w-${ids.work}`,
     title: 'W',
     schemeId: ids.scheme,
-    profile: defaultProfile('grc'),
   });
   const edition = (id: string, slug: string, published: boolean) => ({
     id,

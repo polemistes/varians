@@ -5,7 +5,6 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  defaultProfile,
   fromText,
   newId,
   sequentialIds,
@@ -103,7 +102,6 @@ beforeAll(async () => {
     slug: `w-${ids.work}`,
     title: 'W',
     schemeId: ids.scheme,
-    profile: defaultProfile('grc'),
   });
   await db.insert(segments).values([
     { id: ids.s1, workId: ids.work, address: { line: '1' }, label: '1', sortKey: '00000001' },
@@ -141,6 +139,7 @@ afterAll(async () => {
 describe('the history of a document', () => {
   it('groups changesets into sessions, each with its author and what it changed', async () => {
     const text: Stream = fromText('μῆνιν ἄειδε θεὰ\nΠηληϊάδεω Ἀχιλῆος', {
+      lang: 'grc',
       ids: sequentialIds('w'),
     });
     // w1 μῆνιν, w2 ἄειδε, w3 θεὰ, w4 the break, w5 Πηληϊάδεω, w6 Ἀχιλῆος
@@ -379,7 +378,7 @@ describe('the history of a document', () => {
   });
 
   it('keeps the history of an edition the same way', async () => {
-    const text = fromText('ἄνδρα μοι ἔννεπε', { ids: sequentialIds('e') });
+    const text = fromText('ἄνδρα μοι ἔννεπε', { lang: 'grc', ids: sequentialIds('e') });
     await save(
       ids.ann,
       [{ t: 'insert', after: null, items: text.items }],

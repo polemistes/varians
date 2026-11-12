@@ -13,6 +13,7 @@ import {
   layoutLines,
   orderVariants,
   runOn,
+  languagesOf,
   type ApparatusConventions,
   type ApparatusEntry,
   type Attachment,
@@ -401,7 +402,9 @@ export interface EditionView {
     conventions: EditionConventions;
   };
   apparatus: ApparatusConventions;
-  work: { id: string; title: string; author: string | null; language: string };
+  work: { id: string; title: string; author: string | null };
+  /** The languages of the text, those of more words first; every word in `content` and `lines` carries its own (`lang`). */
+  languages: string[];
   content: Stream;
   lines: LayoutLine[];
   sigla: {
@@ -550,8 +553,8 @@ export async function editionView(
       id: row.workId,
       title: work?.title ?? '',
       author: work?.author ?? null,
-      language: work?.language ?? 'grc',
     },
+    languages: languagesOf(context.edition.content.items),
     content: context.edition.content,
     lines:
       options.lines === false
@@ -855,7 +858,7 @@ export function attachRecords(
         return candidate;
       }),
   ];
-  const attached = attachToSites(collation, baseUnits, candidates, context.profile.fold);
+  const attached = attachToSites(collation, baseUnits, candidates);
   return {
     // The places a conjecture or reported reading makes take the editor's marks too.
     collation: applySiteKinds(attached.collation, baseUnits, marksOf(context, passage)),

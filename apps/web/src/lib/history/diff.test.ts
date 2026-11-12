@@ -9,7 +9,8 @@ import {
 } from '@varians/core';
 import { deepEqual, diffStates, sameItem } from './diff.ts';
 
-const text = (): Stream => fromText('a b c d\ne f g h\ni j k l', { ids: sequentialIds() });
+const text = (): Stream =>
+  fromText('a b c d\ne f g h\ni j k l', { lang: 'en', ids: sequentialIds() });
 
 function summary(diff: ReturnType<typeof diffStreams>) {
   const changes = diff.changes

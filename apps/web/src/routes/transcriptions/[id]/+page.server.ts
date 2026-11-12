@@ -9,6 +9,7 @@ import { error, fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { detectNumbering, type UnitMapping } from '@varians/core';
 import { z } from 'zod';
 import { VersionConflict } from '$lib/server/documents/service';
+import { LanguageMissing, languageTag } from '$lib/server/import/language';
 import { DEFAULT_MAX_UPLOAD_BYTES } from '$lib/server/images/tiles';
 import { pageImage } from '$lib/server/page-source';
 import { pageSource } from '$lib/server/pages';
@@ -103,6 +104,7 @@ function target(data: WorkbenchData, form: FormData, userId: string): ImportTarg
     replace: flag(form, 'replace'),
     createPages: data.canMaintainWitness,
     placement: placementOf(data, form),
+    language: languageTag(form.get('language')),
   };
 }
 
@@ -170,6 +172,8 @@ async function imported(
     if (cause instanceof VersionConflict)
       return fail(409, { message: t.importer.conflict, conflict: true });
     if (cause instanceof SourceError) return fail(400, { message: cause.message });
+    if (cause instanceof LanguageMissing)
+      return fail(400, { message: t.importer.languageRequired });
     // What went wrong in detail is for the log; the message says what to check.
     console.warn('import failed', cause);
     return fail(400, { message: t.importer.failed(t.importer.unreadable) });

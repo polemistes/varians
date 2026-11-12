@@ -14,7 +14,7 @@ import { clipCells, positionIn, slimLine, touchedLines } from './review.ts';
 import type { Cell, CompactLine } from './types.ts';
 
 const text = (): Stream => {
-  const s = fromText('a b c\nd e f\ng h i j k l m n o p', { ids: sequentialIds() });
+  const s = fromText('a b c\nd e f\ng h i j k l m n o p', { lang: 'en', ids: sequentialIds() });
   (s.items[0] as Token).segment = { segmentId: 'one' };
   (s.items[4] as Token).segment = { segmentId: 'two' };
   return s;

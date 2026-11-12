@@ -12,7 +12,7 @@ import { diffStates } from './diff.ts';
 import { cellText, renderLines, spaceAfter, type RenderLine } from './placement.ts';
 import { serializeDiff } from './types.ts';
 
-const text = (): Stream => fromText('a b c\nd e f\ng h', { ids: sequentialIds() });
+const text = (): Stream => fromText('a b c\nd e f\ng h', { lang: 'en', ids: sequentialIds() });
 
 function render(ops: Op[], authors: Record<string, string> = {}): RenderLine[] {
   const before = text();

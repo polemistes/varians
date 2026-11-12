@@ -585,7 +585,6 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
       slug: work.slug,
       title: work.title,
       author: work.author,
-      language: work.language,
       identifier: work.identifier,
       description: work.description,
       scheme: scheme
@@ -597,7 +596,6 @@ async function writeWorkFiles(ctx: WorkContext): Promise<void> {
             createdAt: iso(scheme.createdAt),
           }
         : null,
-      profile: work.profile,
       licence: dataLicence(),
       maintainers: maintainerRows.map((m) => ({
         id: m.userId,
@@ -961,7 +959,6 @@ async function writeTranscriptionFiles(ctx: WorkContext, current: TranscriptionR
       head: await headOf(db, 'transcription', t.id, upTo),
       keepsWrittenForm: t.keepsWrittenForm,
       displayAsWritten: t.displayAsWritten,
-      profile: t.profile,
       description: t.description,
       sources: t.sources,
       licence: t.licenceId,
@@ -1011,7 +1008,6 @@ async function writeTranscriptionFiles(ctx: WorkContext, current: TranscriptionR
       exportTranscriptionTei({
         stream: t.content,
         title: `${work.title}: ${witness.name}, ${t.name}`,
-        language: work.language,
         ...(t.sources ? { sources: t.sources } : {}),
         ...teiRights(t.licenceId, t.rightsNote),
         contributors: await contributorsOf(ctx, 'transcription', t.id, upTo),
@@ -1229,7 +1225,6 @@ async function writeEditionFiles(ctx: WorkContext, edition: EditionRow): Promise
       exportEditionTei({
         title: edition.title,
         ...(edition.editors.length ? { editors: edition.editors } : {}),
-        language: work.language,
         ...(edition.preface ? { preface: edition.preface } : {}),
         ...(edition.sources ? { sources: edition.sources } : {}),
         ...teiRights(edition.licenceId, edition.rightsNote),

@@ -214,6 +214,8 @@ export const reader = {
   /** The colophon at the foot of the page. */
   colophon: {
     title: 'About This Edition',
+    /** The languages the text contains, most words first. */
+    languages: 'Languages',
     sources: 'Sources',
     licence: 'Licence',
     rightsNote: 'Rights',

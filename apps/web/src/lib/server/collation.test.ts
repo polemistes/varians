@@ -11,7 +11,7 @@ import {
 } from './collation.ts';
 
 function segmented(text: string, prefix: string): Stream {
-  const stream = fromText(text, { ids: sequentialIds(prefix) });
+  const stream = fromText(text, { lang: 'grc', ids: sequentialIds(prefix) });
   (stream.items[0] as Token).segment = { segmentId: 's1' };
   return stream;
 }
@@ -22,7 +22,6 @@ function context(
 ): EditionContext {
   return {
     edition: { id: 'e', workId: 'w', content: segmented('the quick brown fox', 'e'), version: 1 },
-    profile: { language: 'en', fold: {} } as unknown as EditionContext['profile'],
     sigla: [
       {
         siglum: 'A',

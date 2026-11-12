@@ -1,13 +1,5 @@
 /** Time the edition view of a long synthetic work (LINES=600 by default, three witnesses) against the test database; everything made is removed. Run: pnpm --filter @varians/web exec tsx scripts/perf-edition.ts */
-import {
-  defaultProfile,
-  fromText,
-  newId,
-  SCHEME_PRESETS,
-  type Item,
-  type Stream,
-  type Token,
-} from '@varians/core';
+import { fromText, newId, SCHEME_PRESETS, type Item, type Stream, type Token } from '@varians/core';
 import {
   createDatabase,
   referenceSchemes,
@@ -46,7 +38,7 @@ function streamOf(lines: Map<string, string[]>, segmentIdOf: (l: string) => stri
   for (const [label, words] of lines) {
     if (!first) items.push({ kind: 'break', id: newId(), type: 'line' });
     first = false;
-    const line = fromText(words.join(' '));
+    const line = fromText(words.join(' '), { lang: 'grc' });
     (line.items[0] as Token).segment = { segmentId: segmentIdOf(label) };
     items.push(...line.items);
   }
@@ -69,9 +61,7 @@ try {
     id: workId,
     slug: workSlug,
     title: 'Perf',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: owner,
   });
   const scheme = await schemeOfWork(db, workId);

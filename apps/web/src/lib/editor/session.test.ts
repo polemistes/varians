@@ -35,7 +35,7 @@ function fakeServer(initial: Stream) {
 
 describe('DocumentSession', () => {
   it('batches local operations and saves them against the version', async () => {
-    const initial = fromText('a b c', { ids: sequentialIds() });
+    const initial = fromText('a b c', { lang: 'en', ids: sequentialIds() });
     const server = fakeServer(initial);
     const session = new DocumentSession({ content: initial, version: 0 }, server.transport, {
       debounceMs: 5,
@@ -54,7 +54,7 @@ describe('DocumentSession', () => {
   });
 
   it('replays non-overlapping edits after a conflict and drops the overlapping ones', async () => {
-    const initial = fromText('a b c', { ids: sequentialIds() });
+    const initial = fromText('a b c', { lang: 'en', ids: sequentialIds() });
     const server = fakeServer(initial);
     let conflicts = 0;
     const session = new DocumentSession(
@@ -100,7 +100,7 @@ describe('DocumentSession', () => {
   });
 
   it('takes up a save the server adjusted, and replays on it what was typed meanwhile', async () => {
-    const initial = fromText('a b c', { ids: sequentialIds() });
+    const initial = fromText('a b c', { lang: 'en', ids: sequentialIds() });
     let content = initial;
     let version = 0;
     let release!: () => void;
@@ -147,7 +147,7 @@ describe('DocumentSession', () => {
   });
 
   it('keeps operations and reports an error when the server fails', async () => {
-    const initial = fromText('a', { ids: sequentialIds() });
+    const initial = fromText('a', { lang: 'en', ids: sequentialIds() });
     let fail = true;
     const server = fakeServer(initial);
     const session = new DocumentSession(

@@ -3,13 +3,8 @@
  * collation, by the words they concern.
  */
 
-import type { Collation } from '../collate/collate.ts';
-import {
-  archetypeLetters,
-  fold as foldText,
-  type FoldOptions,
-  DEFAULT_FOLD,
-} from '../normalize/fold.ts';
+import { unitFold, type Collation } from '../collate/collate.ts';
+import { archetypeLetters, fold as foldText, type FoldOptions } from '../normalize/fold.ts';
 import type { Unit } from '../stream/words.ts';
 import type { Attachment } from './render.ts';
 
@@ -135,18 +130,12 @@ export function attachToSites(
   collation: Collation,
   baseUnits: Unit[],
   candidates: AttachmentCandidate[],
-  fold: FoldOptions = DEFAULT_FOLD,
+  fold?: FoldOptions,
 ): Attached {
   const bySite: Record<number, Attachment[]> = {};
   const unplaced: Attachment[] = [];
   const sites: Site[] = [...collation.sites];
-  const key = (text: string) =>
-    text
-      .split(/\s+/u)
-      .filter((w) => w)
-      .map((w) => foldText(w, fold))
-      .join(' ');
-  const baseKeys = baseUnits.map((u) => (u.gap ? '' : foldText(u.text, fold)));
+  const { key, baseKeys } = keysOf(baseUnits, fold);
   const baseFoldOver = (from: number, to: number) => baseKeys.slice(from, to).join(' ');
   for (const candidate of candidates) {
     const lemma = key(candidate.lemma);
@@ -241,18 +230,49 @@ export function attachToSites(
   return { collation: { ...collation, sites }, bySite, unplaced };
 }
 
+/**
+ * The comparison keys of a candidate's words and of the base's: by `fold`
+ * where one is given; else each word of the base by the fold of its own
+ * language, and the candidate's words, which carry none, by the fold of the
+ * language most of the base's words have.
+ */
+function keysOf(
+  baseUnits: Unit[],
+  fold: FoldOptions | undefined,
+): { key: (text: string) => string; baseKeys: string[] } {
+  const words = fold ?? unitFold(mainLanguage(baseUnits));
+  const key = (text: string) =>
+    text
+      .split(/\s+/u)
+      .filter((w) => w)
+      .map((w) => foldText(w, words))
+      .join(' ');
+  const baseKeys = baseUnits.map((u) => (u.gap ? '' : foldText(u.text, fold ?? unitFold(u.lang))));
+  return { key, baseKeys };
+}
+
+/** The language most of the units have, the first met where two have as many. */
+function mainLanguage(units: readonly Unit[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const unit of units)
+    if (!unit.gap && unit.lang !== undefined)
+      counts.set(unit.lang, (counts.get(unit.lang) ?? 0) + 1);
+  let best: string | undefined;
+  for (const [lang, n] of counts) if (best === undefined || n > counts.get(best)!) best = lang;
+  return best;
+}
+
 /** Whether a candidate's words occur in a segment at all (for anchoring a new conjecture). */
 export function lemmaOccursIn(
   baseUnits: Unit[],
   lemma: string,
-  fold: FoldOptions = DEFAULT_FOLD,
+  fold?: FoldOptions,
 ): { from: number; to: number }[] {
-  const words = lemma
-    .split(/\s+/u)
-    .filter((w) => w)
-    .map((w) => foldText(w, fold));
+  const { key, baseKeys: keys } = keysOf(baseUnits, fold);
+  const words = key(lemma)
+    .split(' ')
+    .filter((w) => w);
   if (words.length === 0) return [];
-  const keys = baseUnits.map((u) => (u.gap ? '' : foldText(u.text, fold)));
   const out: { from: number; to: number }[] = [];
   for (let i = 0; i + words.length <= keys.length; i++) {
     if (words.every((w, k) => keys[i + k] === w)) out.push({ from: i, to: i + words.length });

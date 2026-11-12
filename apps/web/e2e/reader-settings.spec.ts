@@ -15,14 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import {
-  SCHEME_PRESETS,
-  defaultProfile,
-  fromText,
-  newId,
-  type Stream,
-  type Token,
-} from '@varians/core';
+import { SCHEME_PRESETS, fromText, newId, type Stream, type Token } from '@varians/core';
 import {
   createDatabase,
   editionSigla,
@@ -76,9 +69,7 @@ async function build(userId: string) {
     id: workId,
     slug: WORK,
     title: 'Settings in the reader',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const labels = Object.keys(LINES);
@@ -87,7 +78,7 @@ async function build(userId: string) {
     const items: Stream['items'] = [];
     labels.forEach((label, k) => {
       if (k > 0) items.push({ kind: 'break', id: newId(), type: 'line' });
-      const line = fromText(LINES[label]![which]);
+      const line = fromText(LINES[label]![which], { lang: 'grc' });
       (line.items[0] as Token).segment = { segmentId: segments.get(label)!.id };
       items.push(...line.items);
     });

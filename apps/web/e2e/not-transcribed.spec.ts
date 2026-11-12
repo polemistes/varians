@@ -94,7 +94,7 @@ test('a stretch is marked as not transcribed from the Insert menu', async ({ pag
   await pool.end();
   const items: Item[] = [
     { kind: 'break', id: newId(), type: 'page', pageId: witnessPage!.id },
-    ...fromText('arma virumque cano').items,
+    ...fromText('arma virumque cano', { lang: 'la' }).items,
   ];
   const response = await page.request.post(`/api/documents/transcription/${transcriptionId}/ops`, {
     data: { fromVersion: 0, ops: [{ t: 'insert', after: null, items }] },

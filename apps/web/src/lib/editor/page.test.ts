@@ -6,7 +6,7 @@ import { liftOps, liftToWhole, pageBreaks, pageView, UNPLACED } from './page.ts'
 
 /** Two pages: `a b` on p1, `c d` and `e` on p2, with text before the first page break. */
 function twoPages(): Stream {
-  const s = fromText('x\na b\nc d\ne', { ids: sequentialIds() });
+  const s = fromText('x\na b\nc d\ne', { lang: 'en', ids: sequentialIds() });
   // breaks: t2 (after x), t5 (after b), t8 (after d)
   (s.items[1] as Break).type = 'page';
   (s.items[1] as Break).pageId = 'p1';
@@ -41,9 +41,9 @@ describe('pageView', () => {
     expect(toText(view.stream)).toBe('x');
     expect(view.anchor).toBeNull();
     expect(view.missing).toBeNull();
-    expect(toText(pageView(fromText('a b\nc', { ids: sequentialIds() }), UNPLACED).stream)).toBe(
-      'a b\nc',
-    );
+    expect(
+      toText(pageView(fromText('a b\nc', { lang: 'en', ids: sequentialIds() }), UNPLACED).stream),
+    ).toBe('a b\nc');
   });
 
   it('shows nothing for a page that has no break yet, remembering where the witness order puts its break', () => {

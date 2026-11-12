@@ -16,6 +16,7 @@ import {
   fromLeiden,
   importAltoXml,
   importLeidenPlus,
+  leidenPlusLanguage,
   importPageXml,
   importPlainText,
   importTei,
@@ -33,7 +34,6 @@ import {
   type Item,
   type Level,
   type MemoryEntry,
-  type NormalizationProfile,
   type NumberingPattern,
   type Op,
   type Stream,
@@ -67,6 +67,7 @@ import { loadDocument, replaceContent, saveOps, type SaveResult } from './docume
 import { fetchCtsPassage, isCtsUrn, teiFromCtsReply } from './import/cts.ts';
 import { SafeFetchError, readTextCapped, safeFetch } from './safe-fetch.ts';
 import { previewTei } from './import/tei.ts';
+import { LanguageMissing, withLanguage } from './import/language.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { loadTranscriptionAccess } from './transcription-access.ts';
 import { worksOfTranscription } from './transcription-works.ts';
@@ -84,9 +85,7 @@ export interface WorkbenchWork {
   id: string;
   slug: string;
   title: string;
-  language: string;
   levels: Level[];
-  profile: NormalizationProfile;
 }
 
 /** Works as the workbench needs them, in the order of the ids given; an id of no work is left out. */
@@ -97,9 +96,7 @@ export async function workbenchWorks(db: Database, ids: string[]): Promise<Workb
       id: works.id,
       slug: works.slug,
       title: works.title,
-      language: works.language,
       levels: referenceSchemes.levels,
-      profile: works.profile,
     })
     .from(works)
     .innerJoin(referenceSchemes, eq(referenceSchemes.id, works.schemeId))
@@ -139,7 +136,6 @@ export interface WorkbenchData {
     /** The licence fixed at publication, by name, and the installation's, which publication would give. */
     licence: string | null;
     installationLicence: string;
-    profile: Partial<NormalizationProfile> | null;
   };
   witness: {
     id: string;
@@ -201,7 +197,6 @@ export async function loadWorkbench(
       rightsNote: transcription.rightsNote,
       licence: licenceInfo(transcription.licenceId)?.name ?? null,
       installationLicence: licenceInfo(dataLicence())!.name,
-      profile: transcription.profile,
     },
     witness: {
       id: witness.id,
@@ -450,6 +445,12 @@ interface Target {
   createPages: boolean;
   /** Where text without pages of its own goes; Staging when absent. */
   placement?: Placement;
+  /**
+   * The language of the text, as the person importing gives it: the words
+   * the file leaves without one take it (see `withLanguage`). An import that
+   * would leave a word without a language is refused (LanguageMissing).
+   */
+  language?: string | null;
 }
 
 /** One transaction: the content saved as one changeset (pages and zones beside it). */
@@ -539,8 +540,11 @@ export async function importPlainTextInto(
   target: Target,
   input: PlainTextInput,
 ): Promise<ImportOutcome> {
+  // Plain text declares no language: the person importing says what it is.
+  if (!target.language) throw new LanguageMissing();
   const scheme = input.workId ? (await schemeOfWork(db, input.workId)).scheme : null;
   const result = importPlainText(input.text, {
+    lang: target.language,
     pattern: input.pattern,
     ...(input.startLabel ? { startLabel: input.startLabel } : {}),
     ...(scheme ? { nextLabel: (label: string) => nextLabel(scheme, label) } : {}),
@@ -564,9 +568,13 @@ export async function importLeidenInto(
   target: Target,
   text: string,
 ): Promise<ImportOutcome> {
-  const result = isLeidenPlus(text) ? importLeidenPlus(text) : fromLeiden(text);
+  const plus = isLeidenPlus(text);
+  const result = plus ? importLeidenPlus(text) : fromLeiden(text);
+  // Leiden+ names its language at its head; the printed conventions name none.
+  const declared = plus ? leidenPlusLanguage(text) : undefined;
+  const stream = withLanguage(result.stream, target.language, declared);
   return inTransaction(db, async (tx) => {
-    const saved = await save(tx, target, result.stream, 'Leiden import');
+    const saved = await save(tx, target, stream, 'Leiden import');
     return outcome(saved, { set: 0, unresolved: [] }, result.warnings);
   });
 }
@@ -625,7 +633,11 @@ export async function importTeiInto(
   target: Target,
   input: TeiInput,
 ): Promise<ImportOutcome> {
-  const result = importTei(input.xml, { as: input.as });
+  const read = importTei(input.xml, { as: input.as });
+  const result = {
+    ...read,
+    stream: withLanguage(read.stream, target.language, read.header.language),
+  };
   return inTransaction(db, async (tx) => {
     let starts: { itemIndex: number; label: string }[] = [];
     let unresolvedHints = 0;
@@ -673,6 +685,8 @@ export interface TeiPreviewData {
   words: number;
   pageBreaks: number;
   title: string | null;
+  /** The language the file declares for its text, which the import window offers; null where it declares none. */
+  language: string | null;
   warnings: string[];
 }
 
@@ -695,6 +709,7 @@ export async function teiPreview(
       words: preview.words,
       pageBreaks: as === 'text' ? 0 : preview.structure.pageBreaks,
       title: preview.header.title ?? null,
+      language: preview.header.language ?? null,
       warnings: preview.warnings,
     };
   }
@@ -709,6 +724,7 @@ export async function teiPreview(
     words: result.stream.items.filter(isToken).length,
     pageBreaks: as === 'text' ? 0 : structure.pageBreaks,
     title: result.header.title ?? null,
+    language: result.header.language ?? null,
     warnings: result.warnings,
   };
 }
@@ -806,7 +822,8 @@ export async function importLayoutInto(
   kind?: 'page' | 'alto',
 ): Promise<ImportOutcome> {
   const which = kind ?? layoutKind(xml) ?? 'page';
-  const result = which === 'alto' ? importAltoXml(xml) : importPageXml(xml);
+  const read = which === 'alto' ? importAltoXml(xml) : importPageXml(xml);
+  const result = { ...read, stream: withLanguage(read.stream, target.language) };
   return inTransaction(db, async (tx) => {
     const wanted = result.pages.map((p) => ({
       label: p.label ?? '',
@@ -854,13 +871,9 @@ export async function exportLeidenPlus(
     .from(transcriptions)
     .where(eq(transcriptions.id, transcriptionId));
   if (!row) return null;
-  const [firstWork] = await worksOfTranscription(db, transcriptionId);
-  const work = firstWork
-    ? await db.query.works.findFirst({ where: (w, { eq }) => eq(w.id, firstWork) })
-    : undefined;
   const pageRows = await witnessPages(db, row.witnessId);
+  // The head names the language most of the words have, and a run in another language says its own.
   const text = toLeidenPlus(row.content, {
-    ...(work ? { language: work.language } : {}),
     pageLabels: Object.fromEntries(pageRows.map((page) => [page.id, page.label])),
   });
   return { text, name: row.name };
@@ -882,11 +895,6 @@ export async function exportTei(
   const witness = await db.query.witnesses.findFirst({
     where: (w, { eq }) => eq(w.id, row.witnessId),
   });
-  // The first of its works names the text; a transcription of several works is exported whole all the same.
-  const [firstWork] = await worksOfTranscription(db, transcriptionId);
-  const work = firstWork
-    ? await db.query.works.findFirst({ where: (w, { eq }) => eq(w.id, firstWork) })
-    : undefined;
   const pageRows = await witnessPages(db, row.witnessId);
   const zoneRows = await zonesOf(db, transcriptionId);
   const named = segmentIds(row.content);
@@ -904,7 +912,6 @@ export async function exportTei(
   const xml = exportTranscriptionTei({
     stream: row.content,
     title: witness ? `${witness.name}: ${row.name}` : row.name,
-    ...(work ? { language: work.language } : {}),
     ...(witness
       ? {
           witness: compact({

@@ -1,36 +1,24 @@
 /**
- * Written and read forms in the workbench: the profile in
- * force, the read forms the user typed (for the memory), confirming
- * unchecked words, and what switching the written form on or off does to
- * the text. Pure; removals in operations are null, which survives JSON.
+ * Written and read forms in the workbench: the read forms the user typed
+ * (for the memory), confirming unchecked words, and what switching the
+ * written form on or off does to the text. Every word is read by the rules
+ * of its own language (`tokenProfile`). Pure; removals in operations are
+ * null, which survives JSON.
  */
 
 import {
   agreeUnderFold,
-  defaultProfile,
   isToken,
   profileOf,
-  segmentStartOf,
+  tokenProfile,
   type ProfileFor,
   type Id,
   type Mark,
   type NormalizationMemory,
-  type NormalizationProfile,
   type Op,
   type Stream,
   type Token,
 } from '@varians/core';
-
-/** The work's profile with the transcription's overrides; the language's default where there is no work. */
-export function effectiveProfile(
-  work: NormalizationProfile | null | undefined,
-  overrides: Partial<NormalizationProfile> | null | undefined,
-  language = 'grc',
-): NormalizationProfile {
-  const base = work ?? defaultProfile(language);
-  if (!overrides) return base;
-  return { ...base, ...overrides, fold: { ...base.fold, ...(overrides.fold ?? {}) } };
-}
 
 export interface FormPair {
   form: string;
@@ -113,7 +101,11 @@ export function confirmTokens(
  * itself: their written and read forms agree under the fold (`ΜΗΝΙΝ` read
  * as μῆνιν), so there is nothing for the editor to decide.
  */
-export function autoConfirmOps(stream: Stream, tokenIds: Iterable<Id>, profiles: ProfileFor): Op[] {
+export function autoConfirmOps(
+  stream: Stream,
+  tokenIds: Iterable<Id>,
+  profiles: ProfileFor = tokenProfile,
+): Op[] {
   return uncheckedIn(stream, tokenIds)
     .filter((token) =>
       agreeUnderFold(token.form, token.norm ?? token.form, profileOf(profiles, token)),
@@ -167,42 +159,4 @@ function wholeMarks(marks: Mark[] | undefined): Mark[] | undefined {
     out.push(whole);
   }
   return out;
-}
-
-interface ProfiledWork {
-  id: string;
-  language: string;
-  profile: NormalizationProfile | null;
-}
-
-/**
- * The profile each token is read by: that of the work its stretch is
- * assigned to (the segment run it stands in), else that of `fallback`, the
- * first work the transcription is for. The transcription's overrides apply
- * to all. A miscellany of Greek and Latin works reads each by its own rules.
- */
-export function profilesByWork(
-  stream: Stream,
-  segments: Record<string, { workId: string }>,
-  works: ProfiledWork[],
-  overrides: Partial<NormalizationProfile> | null | undefined,
-  fallback: string | null,
-): (token: Token) => NormalizationProfile {
-  const profiles = new Map(
-    works.map((w) => [w.id, effectiveProfile(w.profile, overrides, w.language)] as const),
-  );
-  const first =
-    (fallback && profiles.get(fallback)) ||
-    (works[0] ? profiles.get(works[0].id)! : effectiveProfile(null, overrides));
-  const workOf = new Map<Id, string | null>();
-  let current: string | null = null;
-  for (const item of stream.items) {
-    const start = segmentStartOf(item);
-    if (start) current = start.segmentId ? (segments[start.segmentId]?.workId ?? null) : null;
-    if (isToken(item)) workOf.set(item.id, current);
-  }
-  return (token) => {
-    const work = workOf.get(token.id);
-    return (work && profiles.get(work)) || first;
-  };
 }

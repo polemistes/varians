@@ -1,7 +1,6 @@
 /**
  * A work as the workbench needs it.
- *   GET   id, slug, title, language, the levels of its reference scheme and
- *         its normalization profile
+ *   GET   id, slug, title and the levels of its reference scheme
  *
  * The workbench asks for it when a work is chosen where text is assigned to
  * segments (naming a segment, numbering lines, importing). Works are public.

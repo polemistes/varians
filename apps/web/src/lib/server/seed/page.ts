@@ -20,7 +20,6 @@
 
 import {
   SCHEME_PRESETS,
-  defaultProfile,
   newId,
   replaceAtSite,
   runsOfSegment,
@@ -85,6 +84,7 @@ const descriptionSchema = z.object({
       .regex(/^[a-z0-9][a-z0-9-]*$/u, 'a slug is lower-case letters, digits, hyphens'),
     title: text,
     author: optionalText,
+    /** The language of the words of the text: every token gets it, the work itself has none. */
     language: z.string().default('grc'),
   }),
   edition: z.object({ title: text, base: text }),
@@ -958,9 +958,7 @@ async function makeWork(s: Seeding): Promise<void> {
     slug: d.work.slug,
     title: d.work.title,
     author: d.work.author ?? null,
-    language: d.work.language,
     schemeId,
-    profile: defaultProfile(d.work.language),
     createdBy: ownerId,
   });
   await db.insert(workMaintainers).values({ workId: s.workId, userId: ownerId });
@@ -1030,7 +1028,12 @@ async function makeTranscripts(s: Seeding): Promise<void> {
     for (const n of w.order) {
       if (items.length > 0) items.push({ kind: 'break', id: newId(), type: 'line' });
       const words = w.words.get(n)!;
-      const tokens: Token[] = words.map((form) => ({ kind: 'token', id: newId(), form }));
+      const tokens: Token[] = words.map((form) => ({
+        kind: 'token',
+        id: newId(),
+        lang: s.plan.description.work.language,
+        form,
+      }));
       tokens[0]!.segment = { segmentId: s.segmentOf.get(n)! };
       ids.set(
         n,
@@ -1202,6 +1205,7 @@ async function readPrintedLine(s: Seeding, line: PlanLine): Promise<void> {
     const items: Item[] = wanted.map((form, k) => ({
       kind: 'token',
       id: newId(),
+      lang: s.plan.description.work.language,
       form,
       source: source
         ? {

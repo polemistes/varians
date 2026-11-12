@@ -4,7 +4,7 @@ import { fromText, sequentialIds, toText, type Stream, type Token } from '@varia
 import { reconcile, render, spanAt, spanOf } from './bridge.ts';
 
 function sample(): Stream {
-  const s = fromText('the quick fox\njumps over', { ids: sequentialIds() });
+  const s = fromText('the quick fox\njumps over', { lang: 'en', ids: sequentialIds() });
   (s.items[0] as Token).segment = { segmentId: 's1' };
   return s;
 }
@@ -220,7 +220,7 @@ describe('a word divided across lines', () => {
   // Found in the workbench: undoing an Enter after a hyphen put the word's
   // two parts together again, and the word kept the join to the next line.
   it('put together again takes the join of its last part', () => {
-    const s = fromText('ab\ncd ef', { ids: sequentialIds() });
+    const s = fromText('ab\ncd ef', { lang: 'en', ids: sequentialIds() });
     (s.items[0] as Token).joinNext = true; // ab and cd are one word
     const r = edit(s, 'ab\ncd', 'ab-cd');
     expect(toText(r.stream)).toBe('ab-cd ef');
@@ -230,7 +230,7 @@ describe('a word divided across lines', () => {
   });
 
   it('keeps the join when its last part still continues on the next line', () => {
-    const s = fromText('ab\ncd\nef', { ids: sequentialIds() });
+    const s = fromText('ab\ncd\nef', { lang: 'en', ids: sequentialIds() });
     (s.items[0] as Token).joinNext = true;
     (s.items[2] as Token).joinNext = true; // ab, cd and ef are one word
     const r = edit(s, 'ab\ncd', 'abcd');

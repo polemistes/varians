@@ -75,7 +75,9 @@ export interface EditionViewClient {
     conventions: EditionConventions;
   };
   apparatus: ApparatusConventions;
-  work: { id: string; title: string; author: string | null; language: string };
+  work: { id: string; title: string; author: string | null };
+  /** The languages of the text, those of more words first; every word carries its own (`lang`). */
+  languages: string[];
   content: Stream;
   lines: LayoutLine[];
   sigla: SiglumClient[];

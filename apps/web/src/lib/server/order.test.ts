@@ -4,7 +4,10 @@ import { orderStatements } from './reader.ts';
 import type { EditionContext } from './collation.ts';
 
 function lined(labels: string[], prefix: string): Stream {
-  const s = fromText(labels.map((l) => `w${l}`).join('\n'), { ids: sequentialIds(prefix) });
+  const s = fromText(labels.map((l) => `w${l}`).join('\n'), {
+    lang: 'grc',
+    ids: sequentialIds(prefix),
+  });
   let k = 0;
   for (const item of s.items)
     if (item.kind === 'token') (item as Token).segment = { segmentId: labels[k++]! };
@@ -20,7 +23,6 @@ describe('orderStatements', () => {
         content: lined(['976', '977', '978', '1000'], 'e'),
         version: 1,
       },
-      profile: { language: 'grc' } as EditionContext['profile'],
       sigla: [
         { siglum: 'A', witnessId: 'a', transcriptionId: 'ta', states: [], variantSiglum: null },
         { siglum: 'B', witnessId: 'b', transcriptionId: 'tb', states: [], variantSiglum: null },
@@ -64,7 +66,6 @@ describe('orderStatements', () => {
     const ids = Object.keys(witnessOrders);
     const context = {
       edition: { id: 'e', workId: 'w', content: lined(edition, 'e'), version: 1 },
-      profile: { language: 'grc' } as EditionContext['profile'],
       sigla: ids.map((id) => ({
         siglum: id,
         witnessId: `w${id}`,

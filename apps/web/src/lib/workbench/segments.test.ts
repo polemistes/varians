@@ -30,7 +30,7 @@ const segments = {
 
 /** Three lines: t1 t2 / t4 t5 / t7 t8, with 1.1 at t1 and 1.2 at t4. */
 function verse(): Stream {
-  const s = fromText('a b\nc d\ne f', { ids: sequentialIds() });
+  const s = fromText('a b\nc d\ne f', { lang: 'en', ids: sequentialIds() });
   (s.items[0] as Token).segment = { segmentId: 's1' };
   (s.items[3] as Token).segment = { segmentId: 's2' };
   return s;

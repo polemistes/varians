@@ -6,7 +6,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   SCHEME_PRESETS,
-  defaultProfile,
   fromText,
   newId,
   toText,
@@ -71,7 +70,7 @@ function stream(lines: Record<string, string>): Stream {
   const items: Item[] = [];
   Object.entries(lines).forEach(([label, text], k) => {
     if (k > 0) items.push({ kind: 'break', id: newId(), type: 'line' });
-    const line = fromText(text);
+    const line = fromText(text, { lang: 'grc' });
     (line.items[0] as Token).segment = { segmentId: segmentIdOf(label) };
     items.push(...line.items);
   });
@@ -143,9 +142,7 @@ beforeAll(async () => {
     id: workId,
     slug: WORK,
     title: 'Copied lines',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const segments = await resolveLabels(db, await schemeOfWork(db, workId), Object.keys(A));

@@ -5,7 +5,7 @@ import { breakTarget, lineAt, lineIndex } from './lines.ts';
 
 describe('lineIndex', () => {
   it('describes each line: opener, first item, segment starts, number in the page', () => {
-    const stream = fromText('a b\nc d\n\ne f', { ids: sequentialIds() });
+    const stream = fromText('a b\nc d\n\ne f', { lang: 'en', ids: sequentialIds() });
     // t3 break after b, t6 break after d (make it a page break), t7 break (empty line)
     (stream.items[5] as Break).type = 'page';
     (stream.items[5] as Break).pageId = 'p2';

@@ -75,6 +75,12 @@ describe('editionView', () => {
     expect(view.lines[0]!.label).toBe('1.1');
     expect(view.lines[4]!.label).toBe('1.5');
     expect(view.lines[1]!.label).toBeNull();
+    // The languages are the text's, and every word carries its own.
+    expect(view.languages).toEqual(['grc']);
+    expect(view.work).not.toHaveProperty('language');
+    expect(
+      view.lines.every((line) => line.items.every((i) => i.kind !== 'token' || i.lang === 'grc')),
+    ).toBe(true);
     expect(view.sigla.map((s) => s.siglum)).toEqual(['A', 'B', 'C', 'T']);
     const five = passageAt(view, '1.5');
     // Each entry is labelled by the segments its words lie in.

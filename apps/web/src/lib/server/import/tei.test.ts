@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SCHEME_PRESETS, defaultProfile, newId, segmentRuns, toText } from '@varians/core';
+import { SCHEME_PRESETS, newId, segmentRuns, toText } from '@varians/core';
 import {
   createDatabase,
   referenceSchemes,
@@ -52,7 +52,6 @@ beforeAll(async () => {
     slug: `w-${ids.work}`,
     title: 'W',
     schemeId: ids.scheme,
-    profile: defaultProfile('grc'),
   });
   await db
     .insert(witnesses)
@@ -89,10 +88,12 @@ describe('TEI import into a transcription', () => {
       xml: XML,
       mapping: preview.mapping,
       userId: ids.user,
+      language: 'grc',
     });
     expect(result.version).toBe(1);
     expect(result.segments).toBe(3);
     expect(toText(result.content).split('\n')).toHaveLength(3);
+    expect(result.content.items.every((i) => i.kind !== 'token' || i.lang === 'grc')).toBe(true);
     const runs = segmentRuns(result.content);
     expect(runs.map((r) => r.segmentId !== null)).toEqual([true, true, true]);
     const created = await db.select().from(segments).where(eq(segments.workId, ids.work));

@@ -10,7 +10,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   SCHEME_PRESETS,
   exportEditionTei,
-  defaultProfile,
   newId,
   type Item,
   type Stream,
@@ -146,9 +145,7 @@ beforeAll(async () => {
     id: workId,
     slug: PREFIX,
     title: 'Passages',
-    language: 'grc',
     schemeId,
-    profile: defaultProfile('grc'),
     createdBy: userId,
   });
   const segments = await resolveLabels(db, await schemeOfWork(db, workId), LABELS);

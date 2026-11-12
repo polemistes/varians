@@ -50,7 +50,6 @@ import {
   type FieldErrors,
   type Parsed,
 } from '$lib/registry/forms';
-import { languageName } from '$lib/registry/languages';
 import { exampleLabel, labelRanges, schemeSentence } from '$lib/registry/scheme';
 import type { Cited, SearchHit } from '$lib/registry/types';
 import { recordActions } from '$lib/strings/record-actions';
@@ -141,8 +140,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       slug: work.slug,
       title: work.title,
       author: work.author,
-      language: work.language,
-      languageName: languageName(work.language),
       identifier: work.identifier,
       identifiers: work.identifiers,
       description: work.description,
