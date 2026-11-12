@@ -29,68 +29,6 @@
               "published"
             ]
           },
-          "number": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "basis": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "sigla": {
-                "type": "array",
-                "items": {
-                  "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siglum"
-                }
-              },
-              "versions": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "integer"
-                }
-              },
-              "siteKinds": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "segmentId": {
-                      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
-                    },
-                    "siteKey": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/siteKind"
-                    },
-                    "minor": {
-                      "const": true
-                    }
-                  },
-                  "required": [
-                    "segmentId",
-                    "siteKey"
-                  ],
-                  "anyOf": [
-                    {
-                      "required": [
-                        "kind"
-                      ]
-                    },
-                    {
-                      "required": [
-                        "minor"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "personId": {
             "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
           },

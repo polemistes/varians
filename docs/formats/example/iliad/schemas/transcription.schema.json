@@ -26,9 +26,6 @@
         "null"
       ]
     },
-    "visibility": {
-      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
-    },
     "version": {
       "type": "integer",
       "minimum": 0

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://varians.eu/formats/2/versions.schema.json",
+  "title": "Versions",
+  "description": "versions.json: the versions of a transcription or an edition, each a directory versions/<n>/ of the files as published (specification 4.12).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://varians.eu/formats/2/versions.schema.json"
+    },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/id"
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "momentId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personId": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+          },
+          "at": {
+            "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/time"
+          },
+          "withdrawn": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "at": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/time"
+              },
+              "personId": {
+                "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "at"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "version",
+          "at"
+        ]
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "versions"
+  ]
+}

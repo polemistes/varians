@@ -38,21 +38,12 @@
         "null"
       ]
     },
-    "visibility": {
-      "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/visibility"
-    },
     "version": {
       "type": "integer",
       "minimum": 0
     },
     "head": {
       "$ref": "https://varians.eu/formats/2/common.schema.json#/$defs/idOrNull"
-    },
-    "publishedVersion": {
-      "type": [
-        "integer",
-        "null"
-      ]
     },
     "conventions": {
       "type": "object"
@@ -216,6 +207,44 @@
     },
     "content": {
       "$ref": "https://varians.eu/formats/2/stream.schema.json"
+    },
+    "witnessVersions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "description": "In the edition.json of a version only: from each transcription id of the sigla to the number of the version of that transcription the apparatus compares."
+    },
+    "conjectures": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "readings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "bibliography": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     }
   },
   "required": [

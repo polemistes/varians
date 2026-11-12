@@ -115,7 +115,7 @@ image = {'type': ['object', 'null'], 'properties': {'kind': {'enum': ['upload', 
 schema('pages', 'Pages', 'pages.json: the pages of a witness in order, with their images (specification 4.7).', None,
   ('pages', obj({'id': ref('id'), 'label': {'type': 'string'}, 'position': {'type': 'number'}, 'image': image, 'createdAt': ref('timeOrNull')}, ['id', 'label', 'position'])))
 schema('transcription', 'Transcription', 'transcription.json: a transcription of a witness, with its text (specification 4.8).', obj({
-  **top('transcription'), 'id': ref('id'), 'name': {'type': 'string'}, 'witnessId': ref('id'), 'ownerId': ref('id'), 'ownerName': NS, 'visibility': ref('visibility'),
+  **top('transcription'), 'id': ref('id'), 'name': {'type': 'string'}, 'witnessId': ref('id'), 'ownerId': ref('id'), 'ownerName': NS,
   'version': {'type': 'integer', 'minimum': 0}, 'head': ref('idOrNull'), 'keepsWrittenForm': {'type': 'boolean'}, 'displayAsWritten': {'type': 'boolean'},
   'description': NS, 'sources': NS, 'licence': NS, 'rightsNote': NS, 'createdAt': ref('timeOrNull'), 'content': {'$ref': BASE + 'stream.schema.json'}},
   ['$schema', 'id', 'name', 'witnessId', 'version', 'content']))
@@ -133,19 +133,26 @@ schema('changeset', 'Changeset', 'One line of history.ndjson: a change to a docu
   'id': ref('id'), 'parentId': ref('idOrNull'), 'merged': arr(ref('id')), 'version': NI, 'personId': ref('idOrNull'), 'at': ref('time'),
   'ops': arr(sref('op')), 'reverse': arr(sref('op')), 'message': NS}, ['id', 'at', 'ops', 'reverse']))
 schema('moments', 'Moments', 'moments.json: named and published moments of a document\'s history (specification 5.4).', None,
-  ('moments', obj({'id': ref('id'), 'version': {'type': 'integer', 'minimum': 0}, 'name': {'type': 'string'}, 'kind': {'enum': ['named', 'published']}, 'number': NI,
-                   'basis': {'type': ['object', 'null'], 'properties': {'sigla': arr(ref('siglum')), 'versions': {'type': 'object', 'additionalProperties': {'type': 'integer'}}, 'siteKinds': arr(obj({'segmentId': ref('id'), 'siteKey': {'type': 'string'}, 'kind': ref('siteKind'), 'minor': {'const': True}}, ['segmentId', 'siteKey'], anyOf=[{'required': ['kind']}, {'required': ['minor']}]))}},
+  ('moments', obj({'id': ref('id'), 'version': {'type': 'integer', 'minimum': 0}, 'name': {'type': 'string'}, 'kind': {'enum': ['named', 'published']},
                    'personId': ref('idOrNull'), 'at': ref('time')}, ['id', 'version', 'name', 'kind', 'at'])))
 schema('edition', 'Edition', 'edition.json: an edition, its conspectus, adoptions, notes and text (specification 4.10).', obj({
   **top('edition'), 'id': ref('id'), 'slug': {'type': 'string'}, 'title': {'type': 'string'}, 'editors': arr({'type': 'string'}), 'preface': NS, 'ownerId': ref('id'), 'ownerName': NS,
-  'visibility': ref('visibility'), 'version': {'type': 'integer', 'minimum': 0}, 'head': ref('idOrNull'), 'publishedVersion': NI, 'conventions': {'type': 'object'}, 'copiedFrom': {'type': ['object', 'null']},
+  'version': {'type': 'integer', 'minimum': 0}, 'head': ref('idOrNull'), 'conventions': {'type': 'object'}, 'copiedFrom': {'type': ['object', 'null']},
   'sources': NS, 'licence': NS, 'rightsNote': NS, 'createdAt': ref('timeOrNull'),
   'sigla': arr(ref('siglum')),
   'adoptions': arr({'oneOf': [ref('id'), obj({'conjectureId': ref('id'), 'at': ref('timeOrNull')}, ['conjectureId'])]}),
   'collaborators': arr(obj({'personId': ref('id'), 'grantedBy': ref('idOrNull'), 'since': ref('timeOrNull')})),
   'notes': arr(obj({'id': ref('id'), 'segmentId': ref('id'), 'segmentLabel': NS, 'tokenIds': arr(ref('id')), 'text': {'type': 'string'}, 'personId': ref('idOrNull'), 'createdAt': ref('timeOrNull')}, ['id', 'segmentId', 'tokenIds', 'text'])),
   'siteKinds': arr(obj({'segmentId': ref('id'), 'siteKey': {'type': 'string'}, 'kind': ref('siteKind'), 'minor': {'const': True}, 'personId': ref('idOrNull'), 'setAt': ref('timeOrNull')}, ['segmentId', 'siteKey'], anyOf=[{'required': ['kind']}, {'required': ['minor']}])),
-  'content': {'$ref': BASE + 'stream.schema.json'}}, ['$schema', 'id', 'slug', 'title', 'version', 'conventions', 'sigla', 'content']))
+  'content': {'$ref': BASE + 'stream.schema.json'},
+  'witnessVersions': {'type': 'object', 'additionalProperties': {'type': 'integer', 'minimum': 1}, 'description': 'In the edition.json of a version only: from each transcription id of the sigla to the number of the version of that transcription the apparatus compares.'},
+  'conjectures': arr({'type': 'object'}), 'readings': arr({'type': 'object'}), 'citations': arr({'type': 'object'}), 'bibliography': arr({'type': 'object'}),
+  'constraints': arr({'type': 'object'})}, ['$schema', 'id', 'slug', 'title', 'version', 'conventions', 'sigla', 'content']))
+schema('versions', 'Versions', 'versions.json: the versions of a transcription or an edition, each a directory versions/<n>/ of the files as published (specification 4.12).', None,
+  ('versions', obj({'id': ref('id'), 'number': {'type': 'integer', 'minimum': 1}, 'version': {'type': 'integer', 'minimum': 0}, 'momentId': ref('idOrNull'), 'note': NS,
+                    'personId': ref('idOrNull'), 'at': ref('time'),
+                    'withdrawn': {'type': ['object', 'null'], 'properties': {'at': ref('time'), 'personId': ref('idOrNull'), 'note': NS}, 'required': ['at']}},
+                   ['id', 'number', 'version', 'at'])))
 schema('alignment', 'Alignment constraints', 'alignment.json: edition tokens an editor holds to witness tokens (specification 4.11).', None,
   ('constraints', obj({'id': ref('id'), 'segmentId': ref('id'), 'baseTokenIds': arr(ref('id')), 'transcriptionId': ref('id'), 'witnessTokenIds': arr(ref('id')), 'createdAt': ref('timeOrNull')},
                       ['id', 'segmentId', 'baseTokenIds', 'transcriptionId', 'witnessTokenIds'])))
