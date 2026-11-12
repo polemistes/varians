@@ -63,7 +63,7 @@ An archive holds one work, in a directory named by the work's slug:
   tei-subset.md                  a readable account of the TEI used (informative)
 ```
 
-A witness is in a work's archive when one of its transcriptions is, when an edition's conspectus names it, or when a reading is reported for it. A transcription is in a work's archive when its text is assigned to a segment of the work, or when a conspectus of one of the work's editions names it. An archive written for one person (a download) holds only the records that person may see (not a draft transcription or edition, but every conjecture and reported reading); an edition they may not edit is written as its latest published version, with its history up to that version.
+A witness is in a work's archive when one of its transcriptions is, when an edition's conspectus names it, or when a reading is reported for it. A transcription is in a work's archive when its text is assigned to a segment of the work, or when a conspectus of one of the work's editions names it. An archive written for one person (a download) holds only the records that person may see (not a draft transcription or edition, but every conjecture and reported reading); a transcription or an edition they may not edit is written as its latest version, with `versions.json` and `versions/`, and without its history (section 9.3).
 
 `.txt`, `.md`, `README.md`, `schemas/` and `tei-subset.md` are for people and other tools; a reader rebuilding the records must not depend on them.
 
