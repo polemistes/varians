@@ -14,7 +14,6 @@ import type {
   Item,
   Level,
   MemoryEntry,
-  NormalizationProfile,
   Op,
   SiteKind,
   Stream,
@@ -195,7 +194,6 @@ export const works = pgTable(
     slug: text().notNull(),
     title: text().notNull(),
     author: text(),
-    language: text().notNull().default('grc'),
     /** The primary canonical identifier, a CTS URN, where one exists. */
     identifier: text(),
     /** Further canonical identifiers, typed. */
@@ -204,7 +202,6 @@ export const works = pgTable(
     schemeId: text()
       .notNull()
       .references(() => referenceSchemes.id),
-    profile: jsonb().$type<NormalizationProfile>().notNull(),
     createdBy: text().references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -377,8 +374,6 @@ export const transcriptions = pgTable(
     keepsWrittenForm: boolean().notNull().default(false),
     /** Show the written form without word divisions (scriptio continua). */
     displayAsWritten: boolean().notNull().default(false),
-    /** Overrides of the work's normalization profile, or null. */
-    profile: jsonb().$type<Partial<NormalizationProfile>>(),
     memory: jsonb().$type<MemoryEntry[]>().notNull().default([]),
     /** A free note on the transcription: source, conventions, state. */
     description: text(),

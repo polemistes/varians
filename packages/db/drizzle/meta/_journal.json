@@ -155,6 +155,13 @@
       "when": 1794467065087,
       "tag": "0021_works_by_assignment",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794474877054,
+      "tag": "0022_language_on_text",
+      "breakpoints": true
     }
   ]
 }
