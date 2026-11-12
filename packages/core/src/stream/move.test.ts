@@ -193,7 +193,7 @@ describe('moveToPage', () => {
     expect(show(moved2)).toBe('b #p1 x / a');
   });
 
-  it('moves to Not on a page and leaves a run already at the end alone', () => {
+  it('moves to Staging and leaves a run already at the end alone', () => {
     const start = build('u #p1 a@s1 b');
     const moved = run(
       start,
@@ -221,7 +221,7 @@ describe('conformPages', () => {
     expect(conformPages(build(''), order)).toEqual([]);
   });
 
-  it('sends the text of a break naming no page, or a page that is gone, to Not on a page', () => {
+  it('sends the text of a break naming no page, or a page that is gone, to Staging', () => {
     const s = build('u #? a@s1 b #p9 c #p1 d');
     const out = run(s, conformPages(s, order, sequentialIds('n')));
     expect(show(out)).toBe('u / a@s1 b / c #p1 d');

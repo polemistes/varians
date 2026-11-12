@@ -217,7 +217,7 @@ export class Workbench {
   form = $state<Form>('read');
   /** The view asked for: `'unplaced'`, a page id, or `'whole'`. */
   requestedView = $state<string | null>(null);
-  /** In Not on a page: the page the facsimile shows, chosen in its own chooser; null for the proposed page. */
+  /** In Staging: the page the facsimile shows, chosen in its own chooser; null for the proposed page. */
   facsimileChoice = $state<string | null>(null);
   /** A passing message of the status line. */
   notice = $state.raw<WorkbenchNotice | null>(null);
@@ -289,7 +289,7 @@ export class Workbench {
       return;
     }
     if (!remembered || settleView(remembered, this.stream, this.pages) !== remembered) return;
-    // Not on a page left empty since, while pages have text: the text has been placed, and the transcript opens where it is.
+    // Staging left empty since, while pages have text: the text has been placed, and the transcript opens where it is.
     if (
       remembered === UNPLACED &&
       !hasUnplacedText(this.stream) &&
@@ -330,7 +330,7 @@ export class Workbench {
   /** Words can be mapped to the image in a page's own view only. */
   readonly onPage = $derived(this.view !== WHOLE && this.view !== UNPLACED);
   /**
-   * The page Move to Page… proposes (C5): in Not on a page, the page the
+   * The page Move to Page… proposes (C5): in Staging, the page the
    * facsimile shows (chosen, else the first page without text); on a page,
    * the first other page without text.
    */
@@ -343,7 +343,7 @@ export class Workbench {
     }
     return this.pages.find((p) => p.id !== this.view && !this.textOnPages.has(p.id))?.id ?? null;
   });
-  /** The witness page the facsimile shows: the page shown, in Not on a page the proposed one, in the whole text the caret's. */
+  /** The witness page the facsimile shows: the page shown, in Staging the proposed one, in the whole text the caret's. */
   readonly pageId = $derived.by(() => {
     if (this.view === UNPLACED) return this.proposedPage;
     if (this.view === WHOLE) {
@@ -768,7 +768,7 @@ export class Workbench {
     if (view !== null) this.requestedView = view;
   }
 
-  /** In Not on a page: show another page in the facsimile, which Move to Page… then proposes. */
+  /** In Staging: show another page in the facsimile, which Move to Page… then proposes. */
   chooseFacsimilePage(pageId: string | null): void {
     this.facsimileChoice = pageId;
   }

@@ -49,7 +49,7 @@
 
   let tab = $state('tei');
   let replace = $state(false);
-  /** Where text without pages of its own goes: Not on a page, or the page shown. */
+  /** Where text without pages of its own goes: Staging, or the page shown. */
   let placement = $state<string>(untrack(() => (wb.onPage && wb.page ? wb.page : UNPLACED)));
   const placements = $derived([
     { value: UNPLACED, label: t.importer.placementUnplaced },

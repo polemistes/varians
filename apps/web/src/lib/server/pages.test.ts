@@ -351,7 +351,7 @@ describe('the list of pages', () => {
     expect(await movePage(db, 'no-such-page', 1)).toBeNull();
   });
 
-  it('removes a page with its zones, and moves its text to Not on a page in every transcript', async () => {
+  it('removes a page with its zones, and moves its text to Staging in every transcript', async () => {
     const [p1r, p1v, p2r, p2v] = await pagesOfWitness(db, ids.witness);
     await db.insert(zones).values({
       id: newId(),
@@ -401,7 +401,7 @@ describe('the list of pages', () => {
       .where(eq(changesets.documentId, ids.transcription))
       .orderBy(desc(changesets.version))
       .limit(1);
-    expect(log!.message).toBe('Page 1v removed from the witness; its text is not on a page');
+    expect(log!.message).toBe('Page 1v removed from the witness; its text is in Staging');
     expect(log!.userId).toBe(ids.user);
 
     // Undoing that changeset cannot bring back a page break for the page that is gone: the save keeps the shape.

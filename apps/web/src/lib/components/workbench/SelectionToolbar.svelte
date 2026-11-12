@@ -44,7 +44,7 @@
     onsegment,
   }: Props = $props();
 
-  /** The places the words can go, besides the proposed page: Not on a page and every other page. */
+  /** The places the words can go, besides the proposed page: Staging and every other page. */
   const targets = $derived([
     ...(wb.view !== UNPLACED
       ? [{ id: null as string | null, label: t.pages.unplaced, text: wb.unplacedWords > 0 }]

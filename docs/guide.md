@@ -93,7 +93,7 @@ Every page is a card with its image, its label, its number and the rights statem
 
 Pages without an image within the run keep their place in it, so a gap moves along with the images. Zones stay with their pages here too.
 
-A page's text belongs to the transcripts, not to the page. Removing a page never deletes text: the text on it goes to **Not on a page** in every transcript of the witness, other people's too, as a change in each transcript's history made by you and saying which page was removed. The dialog says how many words in how many transcripts that is. The image and the boxes drawn on the page go with it. Moving a page to another position moves its text with it in every transcript, since a transcript's text follows the order of the pages.
+A page's text belongs to the transcripts, not to the page. Removing a page never deletes text: the text on it goes to **Staging** in every transcript of the witness, other people's too, as a change in each transcript's history made by you and saying which page was removed. The dialog says how many words in how many transcripts that is. The image and the boxes drawn on the page go with it. Moving a page to another position moves its text with it in every transcript, since a transcript's text follows the order of the pages.
 
 ## Transcribing
 
@@ -105,9 +105,9 @@ A transcript opens in the workbench: the text one page at a time, and beside it 
 
 Above the text is the bar you work with: the page shown, with arrows to the page before and after, **Diplomatic** and **Normalized** where the transcript keeps both forms, **Insert** and **Tools**. The header above holds what concerns the whole transcript: the buttons that move and that show or hide the side pane, and the transcript's **⋯** menu, which is the same wherever a transcript stands (in the workbench, in its row on a witness's or a work's page, on Your Work and under Continue): **Settings…**, **Make a Copy…**, the downloads (**TEI XML**, **Leiden+**) and **Delete Transcript…**. From a list, **Settings…** and **Make a Copy…** open the workbench with their window. **Import…** and **Number Lines from Here…** are under **Tools**.
 
-A transcript opens on the page you last had open in this browser. The first time, it opens on the first page that has text; when no page has text yet, on the text that is not on a page; and when there is no text at all, on the first page, empty, with its facsimile beside it, ready to be typed. A transcript of a witness without pages, such as a printed edition, opens on its text; one whose witness has neither pages nor text opens with the **Pages** tab showing, since a manuscript's transcription begins with its pages.
+A transcript opens on the page you last had open in this browser. The first time, it opens on the first page that has text; when no page has text yet, on Staging; and when there is no text at all, on the first page, empty, with its facsimile beside it, ready to be typed. A transcript of a witness without pages, such as a printed edition, opens on its text; one whose witness has neither pages nor text opens with the **Pages** tab showing, since a manuscript's transcription begins with its pages.
 
-The status line at the foot says whether your work is saved, which page is shown and how many lines it has, how many words are not on a page, how many words are not yet mapped to the image, and how many words have a normalized form still to check.
+The status line at the foot says whether your work is saved, which page is shown and how many lines it has, how many words are in Staging, how many words are not yet mapped to the image, and how many words have a normalized form still to check.
 
 ### Bringing a text in
 
@@ -126,7 +126,7 @@ The status line at the foot says whether your work is saved, which page is shown
 
 A TEI file may be either, so the import asks which it is before it reads the file.
 
-An import into an empty transcript becomes its text; otherwise it is added to what is there, or replaces the whole text if you ask. Either way it is one change in the history. **Place** says where text goes that the file does not put on pages: **Not on a page**, or the page shown. A transcript in TEI whose page breaks (`<pb n="12r"/>`) carry the labels of the witness's pages puts each page's text on that page, after any text the page has; text under a page break that names no page of the witness goes to Not on a page, and the summary says how many words went there. If you maintain the witness, the pages the file names and the witness lacks are added to it, as they are for PAGE and ALTO. For a transcript, give where it was made under **Source of the Transcript**, and it is added to the transcript's sources.
+An import into an empty transcript becomes its text; otherwise it is added to what is there, or replaces the whole text if you ask. Either way it is one change in the history. **Place** says where text goes that the file does not put on pages: **Staging**, or the page shown. A transcript in TEI whose page breaks (`<pb n="12r"/>`) carry the labels of the witness's pages puts each page's text on that page, after any text the page has; text under a page break that names no page of the witness goes to Staging, and the summary says how many words went there. If you maintain the witness, the pages the file names and the witness lacks are added to it, as they are for PAGE and ALTO. For a transcript, give where it was made under **Source of the Transcript**, and it is added to the transcript's sources.
 
 A transcript holds what its witness has, and nothing an editor added to it. So a transcript that is imported leaves out what its editor supplied: where letters are lost and were restored in square brackets, the gap is kept and the restoration is not, and the witness is not there at the gap (see _Gaps_). A word that the gap breaks keeps the letters that are there and counts with the gap. The editor's regularizations and corrections of the scribe's spelling become the normalized forms of the words; corrections, and letters the editor added in angle brackets or struck out in braces inside a word, are marked as unchecked for you to confirm. A whole word the editor added is left out, and a whole word the editor struck out stays, since the witness has it.
 
@@ -148,15 +148,15 @@ A word divided at the end of a line is joined across the line break: type a hyph
 
 Each page of the witness has its own text in a transcript, and you type a page's text on that page: there is no page break to make, and nothing marks where a page begins. A page that has no text yet is simply empty. The page list marks the pages that have text.
 
-Text that stands on no page has a place of its own, **Not on a page**, first in the page list. It is where imported text arrives when the file does not say its pages, where the text of a removed page goes, and where you can type what you cannot yet place. It is the transcript's text like any other: it is segmented, collated, exported and published. The text of a transcript reads in the order of the pages, Not on a page first; reordering the pages reorders the text, so misbound leaves are listed in the order the text reads.
+Text that stands on no page has a place of its own, **Staging**, first in the page list. It is where imported text arrives when the file does not say its pages, where the text of a removed page goes, and where you can type what you cannot yet place. It is the transcript's text like any other: it is segmented, collated, exported and published. The text of a transcript reads in the order of the pages, Staging first; reordering the pages reorders the text, so misbound leaves are listed in the order the text reads.
 
-Text is put on its page by moving it. Select it, and the toolbar under the selection offers **Move to 12r**, proposing a page, with a list beside it of the other pages and Not on a page. The words go to the end of that page's text, on a line of their own, with their features, their segment and their place in the history; Ctrl+Z takes the move back. The page shown stays, and the status line says where the words went, with **Show** to go there. Words that leave a page leave their boxes on its image behind.
+Text is put on its page by moving it. Select it, and the toolbar under the selection offers **Move to 12r**, proposing a page, with a list beside it of the other pages and Staging. The words go to the end of that page's text, on a line of their own, with their features, their segment and their place in the history; Ctrl+Z takes the move back. The page shown stays, and the status line says where the words went, with **Show** to go there. Words that leave a page leave their boxes on its image behind.
 
-In Not on a page, the **Facsimile** pane shows a page chosen above the image, by default the first page without text, and **Move to…** proposes that page. So the work goes: look at the image, select the passage that stands on it, move it, and the facsimile goes on to the next page without text. Choose another page above the image when the text runs otherwise.
+In Staging, the **Facsimile** pane shows a page chosen above the image, by default the first page without text, and **Move to…** proposes that page. So the work goes: look at the image, select the passage that stands on it, move it, and the facsimile goes on to the next page without text. Choose another page above the image when the text runs otherwise.
 
 Cut and paste also move words: cut a passage, put the caret where it belongs (on another page too), and paste, and the words are the same words, with their features and their segments; their boxes stay behind when they leave their page. Copy and paste makes new words, as in any editor, and is not how text is placed: a copy left behind would be collated as well, and the witness would read the passage twice.
 
-**Whole Text**, at the end of the page list, shows the whole transcript at once, read only, each page's text under its label and the text not on a page under its own heading. Double-click a word to open its page with the word selected.
+**Whole Text**, at the end of the page list, shows the whole transcript at once, read only, each page's text under its label and the text in Staging under its own heading. Double-click a word to open its page with the word selected.
 
 ### Diplomatic and normalized
 
@@ -214,13 +214,13 @@ Both mean that the witness is not there at that stretch when the transcript is c
 
 The gutter at the left shows where segments begin: the work's labels, such as 1.5. Click a line's gutter, press Ctrl+Shift+L, or choose **Segment…** in the toolbar under a selection, to set the label of the segment that begins there; the next label is proposed. A segment can begin in the middle of a line, and a text can leave the work for a while: **Unassigned from Here**. **Number Lines from Here…** labels every following line of the page at once, as verse needs.
 
-Segments are independent of pages. A segment runs on wherever its text runs: from one page to the next, or from Not on a page into a page. Moving text never changes the segment its words belong to, so a text can be segmented while it is all on no page and placed page by page afterwards: a line that ends one page and goes on overleaf is one segment in two parts, which come into their order as the pages fill. Where a page's first line continues the segment of the page before, the gutter shows that segment's label in grey; click it to give the line a segment of its own.
+Segments are independent of pages. A segment runs on wherever its text runs: from one page to the next, or from Staging into a page. Moving text never changes the segment its words belong to, so a text can be segmented while it is all on no page and placed page by page afterwards: a line that ends one page and goes on overleaf is one segment in two parts, which come into their order as the pages fill. Where a page's first line continues the segment of the page before, the gutter shows that segment's label in grey; click it to give the line a segment of its own.
 
 A segment is an address and not a unit of the text. It may begin or end inside a line, and a word divided at the end of a line may be divided where one segment ends and the next begins: the word is one word, its first part in the one segment and its second in the other, and it is compared whole.
 
 ### Mapping words to the image
 
-Words are mapped on their own page: in Not on a page and in the whole text the mapping tools are greyed. The line between the text and the side pane can be dragged, to give the image or the text more room. In the **Facsimile** pane, the words you select or point at in the text light up on the image (the caret alone lights nothing), and pointing at a mapped region shows its box and lights its words in the text. Other boxes are not drawn, so the page stays readable; **Show all boxes** draws them all, and your browser remembers the choice.
+Words are mapped on their own page: in Staging and in the whole text the mapping tools are greyed. The line between the text and the side pane can be dragged, to give the image or the text more room. In the **Facsimile** pane, the words you select or point at in the text light up on the image (the caret alone lights nothing), and pointing at a mapped region shows its box and lights its words in the text. Other boxes are not drawn, so the page stays readable; **Show all boxes** draws them all, and your browser remembers the choice.
 
 - **Map Lines**: select several whole lines in the text, then draw one box around them on the image. Varians finds the lines in the box and divides each into word boxes by the length of the words; correct them as described below.
 - **Map Selection**: select words, then draw a rectangle or polygon around them.
@@ -398,7 +398,7 @@ The owner of an edition invites collaborators under **Owner and Collaborators** 
 
 Offering the ownership, in the same section, hands an edition to someone else. Ownership moves when that person accepts the offer on their account page; the former owner stays on as a collaborator.
 
-Two people may edit the same text at the same time. When both change the same words, the change saved first stands, and the other person is told that theirs was set aside. When a page is removed from the witness, or the pages are put in another order, while you are typing, what you typed is saved all the same and follows the pages: the text of a page that is gone is in Not on a page, the status line says so, and the History shows the change as _Pages reorganized_.
+Two people may edit the same text at the same time. When both change the same words, the change saved first stands, and the other person is told that theirs was set aside. When a page is removed from the witness, or the pages are put in another order, while you are typing, what you typed is saved all the same and follows the pages: the text of a page that is gone is in Staging, the status line says so, and the History shows the change as _Pages reorganized_.
 
 ## The bibliography
 
@@ -477,15 +477,15 @@ Everywhere a pane can be resized, the line between the panes takes the keyboard 
 
 In the workbench:
 
-| Keys                       | Action                                     |
-| -------------------------- | ------------------------------------------ |
-| Ctrl+Shift+U               | unclear                                    |
-| Ctrl+Shift+S               | supplied                                   |
-| Ctrl+Shift+D               | deleted                                    |
-| Ctrl+Shift+A               | added                                      |
-| Ctrl+Shift+B               | abbreviation                               |
-| Ctrl+Shift+G               | gap (text lost or illegible)               |
-| Ctrl+Shift+L               | segment label at the caret                 |
-| Alt+Page Down, Alt+Page Up | next or previous page, Not on a page first |
-| Ctrl+X, then Ctrl+V        | move the selected words to the caret       |
-| Enter                      | new line                                   |
+| Keys                       | Action                               |
+| -------------------------- | ------------------------------------ |
+| Ctrl+Shift+U               | unclear                              |
+| Ctrl+Shift+S               | supplied                             |
+| Ctrl+Shift+D               | deleted                              |
+| Ctrl+Shift+A               | added                                |
+| Ctrl+Shift+B               | abbreviation                         |
+| Ctrl+Shift+G               | gap (text lost or illegible)         |
+| Ctrl+Shift+L               | segment label at the caret           |
+| Alt+Page Down, Alt+Page Up | next or previous page, Staging first |
+| Ctrl+X, then Ctrl+V        | move the selected words to the caret |
+| Enter                      | new line                             |

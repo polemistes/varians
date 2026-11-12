@@ -324,13 +324,13 @@ describe('moveRun (random)', () => {
 interface PageCase {
   stream: Stream;
   order: Id[];
-  /** The page moved to; null is Not on a page. */
+  /** The page moved to; null is Staging. */
   target: Id | null;
   ids: Id[];
 }
 
 function showPageCase(c: PageCase): string {
-  return `pages: ${c.order.join(' ')}\nstream: ${picture(c.stream)}\nto: ${c.target ?? 'Not on a page'}  items: ${c.ids.join(' ')}`;
+  return `pages: ${c.order.join(' ')}\nstream: ${picture(c.stream)}\nto: ${c.target ?? 'Staging'}  items: ${c.ids.join(' ')}`;
 }
 
 function generatePageCase(rng: Rng, size: number): PageCase {
@@ -419,7 +419,7 @@ describe('moveToPage (random)', () => {
   });
 
   // Counterexample (shrunk): pages P1 (none with text); `<lacuna t5@s3.2> t11
-  // t12@s3.1`, move t11 to Not on a page. s3 reads t12 t5 t11 (its parts are
+  // t12@s3.1`, move t11 to Staging. s3 reads t12 t5 t11 (its parts are
   // out of physical order, as they are when a page was placed before another);
   // after the move t12 has lost its explicit start, because the flow from t5
   // now gives it s3, and s3 is one run in physical order: t5 t12 t11. Neither
@@ -464,7 +464,7 @@ interface InsertCase {
 }
 
 function showInsert(c: InsertCase): string {
-  return `pages: ${c.order.join(' ')}\nstream: ${picture(c.stream)}\ninto: ${c.target ?? 'Not on a page'}  new: ${c.items.map((i) => picture({ items: [i] })).join(' ')}`;
+  return `pages: ${c.order.join(' ')}\nstream: ${picture(c.stream)}\ninto: ${c.target ?? 'Staging'}  new: ${c.items.map((i) => picture({ items: [i] })).join(' ')}`;
 }
 
 function generateInsert(rng: Rng, size: number, segments: boolean): InsertCase {

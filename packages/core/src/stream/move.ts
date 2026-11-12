@@ -3,7 +3,7 @@
  * (docs/design.md, sections 3.4 and 3.5).
  *
  * A transcript's stream has a fixed shape: the items before the first page
- * break are the text on no page ("Not on a page"); then each page break,
+ * break are the text on no page ("Staging"); then each page break,
  * naming a page of the witness, opens that page's text. The page breaks
  * stand in the witness's order, no page is named twice, and a page break
  * carries no label.
@@ -260,7 +260,7 @@ function stretchEnd(stream: Stream, opener: number, end: number): Item | null {
   return end - 1 > opener ? stream.items[end - 1]! : null;
 }
 
-/** Where a page's stretch is: the index of its break (-1 for Not on a page) and the exclusive end. */
+/** Where a page's stretch is: the index of its break (-1 for Staging) and the exclusive end. */
 function stretchBounds(stream: Stream, pageId: Id | null): { opener: number; end: number } | null {
   const items = stream.items;
   const opener = pageId === null ? -1 : pageBreakIndex(stream, pageId);

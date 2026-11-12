@@ -107,7 +107,7 @@ function target(data: WorkbenchData, form: FormData, userId: string): ImportTarg
   };
 }
 
-/** Where text without pages of its own goes: a page of the witness when one is named, else Not on a page. */
+/** Where text without pages of its own goes: a page of the witness when one is named, else Staging. */
 function placementOf(data: WorkbenchData, form: FormData): Placement {
   const id = text(form, 'placement');
   return data.pages.some((p) => p.id === id) ? { to: 'page', pageId: id } : { to: 'unplaced' };

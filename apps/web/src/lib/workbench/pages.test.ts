@@ -57,7 +57,7 @@ describe('the text of pages', () => {
 });
 
 describe('views', () => {
-  it('walks Not on a page and the pages in order', () => {
+  it('walks Staging and the pages in order', () => {
     const order = viewOrder(pages);
     expect(order).toEqual([UNPLACED, 'p1', 'p2', 'p3']);
     expect(neighbours(UNPLACED, order)).toEqual({ previous: null, next: 'p1' });
@@ -66,7 +66,7 @@ describe('views', () => {
     expect(neighbours(WHOLE, order)).toEqual({ previous: null, next: UNPLACED });
   });
 
-  it('opens on the first page with text, else Not on a page with text, else the first page, else the text', () => {
+  it('opens on the first page with text, else Staging with text, else the first page, else the text', () => {
     expect(initialView(build('u #p2 a'), pages)).toBe('p2');
     expect(initialView(build('u v'), pages)).toBe(UNPLACED);
     expect(initialView(build(''), pages)).toBe('p1');

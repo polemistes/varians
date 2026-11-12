@@ -121,7 +121,7 @@ describe('the conformance run', () => {
     const first = await conformWitness(db, ids.witness, null, 'Pages reorganized');
     expect(first).toHaveLength(1);
     expect(formatConformance(first[0]!)).toMatch(
-      /^Paged \(.+\), version \d+: 2 page breaks naming no page of the witness removed, 2 words now not on a page; 1 second page break of a page joined to the first; pages put in the witness order; 1 label removed from page breaks$/u,
+      /^Paged \(.+\), version \d+: 2 page breaks naming no page of the witness removed, 2 words now in Staging; 1 second page break of a page joined to the first; pages put in the witness order; 1 label removed from page breaks$/u,
     );
     expect(shape(await content(ids.t))).toBe('u / d / g #p1 a / e #p3 c');
     const [log] = await db

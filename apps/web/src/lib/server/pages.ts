@@ -7,7 +7,7 @@
  *
  * Other records refer to pages by id: zones are drawn on them, and the page
  * breaks of a transcription name the page they begin. Removing a page moves
- * its text to Not on a page in every transcript; reordering pages reorders
+ * its text to Staging in every transcript; reordering pages reorders
  * the transcripts' text.
  *
  * Mutations of a witness's list lock the witness row, so that positions stay
@@ -381,7 +381,7 @@ export type RemovePageResult =
 
 /**
  * Removes a page, its zones and its image files. Text is never deleted:
- * the text on the page goes to Not on a page in every transcript of the
+ * the text on the page goes to Staging in every transcript of the
  * witness, as a change in each one's history made by `actor`. Returns how
  * many words of how many transcripts moved.
  */

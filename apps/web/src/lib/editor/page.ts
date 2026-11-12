@@ -1,7 +1,7 @@
 /**
  * One page of a transcript in the editor.
  *
- * A transcript's stream begins with the text on no page ("Not on a page"),
+ * A transcript's stream begins with the text on no page ("Staging"),
  * then each page break, naming a page of the witness in the witness's
  * order, opens that page's text. The editor shows one of these stretches:
  * a page (`page` a page id), the text on no page (`page` the sentinel

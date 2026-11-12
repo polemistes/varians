@@ -65,7 +65,7 @@ export const editorStrings = {
     any: 'A break goes before this line',
   } as Record<'column' | 'paragraph' | 'any', string>,
   /** The heading of the text on no page in the whole text. */
-  notOnAPage: 'Not on a page',
+  notOnAPage: 'Staging',
   /** The title of a gutter label a page's first line inherits from the page before. */
   runningSegment: 'The segment continues from before; click to set the segment of this word',
   editor: 'Transcription Text',

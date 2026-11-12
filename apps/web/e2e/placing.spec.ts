@@ -3,7 +3,7 @@
  * no page is placed page by page with Move to Page…, the facsimile
  * proposing the next page without text; a later page is placed before an
  * earlier one; every word keeps its segment; removing a page with text
- * sends the text to Not on a page; and text typed on a page that was
+ * sends the text to Staging; and text typed on a page that was
  * removed elsewhere meanwhile is saved on no page, the workbench following.
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -196,7 +196,7 @@ test('text on no page is placed page by page, and goes back when its page is rem
   expect(saving.ok(), await saving.text()).toBe(true);
   const before = segmentsOf({ items }, labelOf);
 
-  // Opened again: no page has text, so the transcript opens on Not on a page, the facsimile on the first page.
+  // Opened again: no page has text, so the transcript opens on Staging, the facsimile on the first page.
   await page.goto(`/transcriptions/${transcriptionId}`);
   await page.waitForLoadState('networkidle');
   await expect(page.getByRole('button', { name: w.pages.choose })).toHaveText(w.pages.unplaced);
@@ -292,7 +292,7 @@ test('text on no page is placed page by page, and goes back when its page is rem
   );
   expect(segmentsOf(await content(), labelOf)).toEqual(before);
 
-  // 1v removed: its two lines go to Not on a page, which the chooser then counts.
+  // 1v removed: its two lines go to Staging, which the chooser then counts.
   await pane.getByRole('tab', { name: w.pane.pages }).click();
   const card = pane
     .getByRole('list', { name: t.gridLabel })

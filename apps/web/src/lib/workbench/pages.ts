@@ -1,6 +1,6 @@
 /**
  * Pages as the workbench navigates them. A transcript's
- * text is the text on no page ("Not on a page") followed by the text of
+ * text is the text on no page ("Staging") followed by the text of
  * each page of the witness, in the witness's order. The workbench shows one
  * of them, or the whole text read only:
  *
@@ -86,7 +86,7 @@ export function hasUnplacedText(stream: Stream): boolean {
   return false;
 }
 
-/** The views the arrows walk: Not on a page, then the pages in order. */
+/** The views the arrows walk: Staging, then the pages in order. */
 export function viewOrder(witnessPages: readonly WitnessPage[]): string[] {
   return [UNPLACED, ...witnessPages.map((p) => p.id)];
 }
@@ -109,7 +109,7 @@ export function neighbours(view: string, order: readonly string[]): Neighbours {
 
 /**
  * The view a transcript opens on (C2), when none is remembered: the first
- * page with text; else Not on a page when it has text; else the first page;
+ * page with text; else Staging when it has text; else the first page;
  * else, for a witness without pages, its text (the text on no page, which
  * is then all of it).
  */
@@ -122,7 +122,7 @@ export function initialView(stream: Stream, witnessPages: readonly WitnessPage[]
 }
 
 /**
- * Make a requested view valid: Not on a page always is; the whole text is
+ * Make a requested view valid: Staging always is; the whole text is
  * where the witness has pages; a page is while the witness has it. Anything
  * else falls back to the view a transcript opens on.
  */

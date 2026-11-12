@@ -85,7 +85,7 @@ function edit(rng: Rng, content: Stream, who: string, fresh: () => Id, atStart: 
       return [{ t: 'delete', ids: [rng.pick(tokens).id] }];
     }
     case 'page': {
-      // Text moved to a page of the witness, or to Not on a page.
+      // Text moved to a page of the witness, or to Staging.
       if (plain.length === 0) return [];
       const at = items.indexOf(rng.pick(plain));
       const run = items.slice(at, at + rng.between(1, 3));

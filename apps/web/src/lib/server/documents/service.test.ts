@@ -197,7 +197,7 @@ describe("saveOps keeps a transcript in the shape of its witness's pages", () =>
     expect(shape(saved.content)).toEqual(['u1', `#${p1}`, 'a1']);
   });
 
-  it('sends the text under a break naming no page of the witness to Not on a page, as a changeset of its own', async () => {
+  it('sends the text under a break naming no page of the witness to Staging, as a changeset of its own', async () => {
     const before = (await save([{ t: 'set', id: 'u1', fields: { form: 'u1' } }])).content;
     const dead = newId();
     const ops: Op[] = [{ t: 'insert', after: 'a1', items: [pageBreak('gone', dead), word('x1')] }];

@@ -8,7 +8,7 @@
    * edit the boxes of the selected words together (move them, stretch
    * them, resize one and let the rest of its line follow, move the boundary
    * between two words), undo such edits, mark a feature, delete a zone.
-   * Words are mapped on their own page only: in Not on a page the pane
+   * Words are mapped on their own page only: in Staging the pane
    * shows a page chosen in a chooser of its own (by default the page Move
    * to Page… proposes), with the mapping tools disabled.
    */

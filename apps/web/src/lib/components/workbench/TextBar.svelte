@@ -2,7 +2,7 @@
   /**
    * The bar above the text: the page chooser with its arrows,
    * the form shown where the transcript keeps both, and the Insert and
-   * Tools menus. The chooser lists Not on a page (with its words when it
+   * Tools menus. The chooser lists Staging (with its words when it
    * has any), every page of the witness with a mark where it has text in
    * this transcript, the whole text, and Pages…. A witness without pages
    * has no chooser: its text is the text.

@@ -521,7 +521,7 @@ export const actions: Actions = {
     };
   },
 
-  /** The page's text goes to Not on a page in every transcript; its image and zones go with it. */
+  /** The page's text goes to Staging in every transcript; its image and zones go with it. */
   remove: async ({ request, locals, params }) => {
     const witness = await maintainedWitness(locals, params.slug);
     const form = await readForm(request);

@@ -28,7 +28,7 @@ export const workbench = {
     next: 'Next Page',
     choose: 'Choose a Page',
     /** The text on no page of the witness. */
-    unplaced: 'Not on a page',
+    unplaced: 'Staging',
     unplacedWords: (n: number) => plural(n, 'word', 'words'),
     whole: 'Whole Text',
     wholeHint: 'Every page in one view, read only; double-click a word to open its page',
@@ -38,7 +38,7 @@ export const workbench = {
     manageHint: 'Every page of the witness, with its image, in the side pane',
     /** After a save: the witness's pages changed meanwhile, and the text was made to follow them. */
     reorganized: 'Pages reorganized',
-    pageGone: 'A page was removed from the witness; its text is in Not on a page',
+    pageGone: 'A page was removed from the witness; its text is in Staging',
   },
 
   /** Moving text between pages. */
@@ -46,12 +46,12 @@ export const workbench = {
     to: (label: string) => `Move to ${label}`,
     toTitle: 'Move the selected words to the end of this page’s text',
     other: 'Move to…',
-    otherTitle: 'Move the selected words to another page, or to Not on a page',
+    otherTitle: 'Move the selected words to another page, or to Staging',
     moved: (label: string) => `Moved to ${label}`,
     show: 'Show',
-    /** The facsimile's own page chooser in Not on a page. */
+    /** The facsimile's own page chooser in Staging. */
     facsimilePage: 'Page Shown beside the Text',
-    notMappable: 'Words not on a page cannot be mapped',
+    notMappable: 'Words in Staging cannot be mapped',
     notMappableWhole: 'Open the page to map its words',
   },
 
@@ -178,7 +178,7 @@ export const workbench = {
     proposals: (n: number) => `Normalized Forms Proposed (${n})`,
     wholeText: 'whole text',
     /** Words on no page, in the status line of a page or the whole text. */
-    unplaced: (n: number) => `${plural(n, 'word', 'words')} not on a page`,
+    unplaced: (n: number) => `${plural(n, 'word', 'words')} in Staging`,
     readOnly: 'Read only',
     leaveWarning: 'Changes are still being saved. Leave anyway?',
   },
@@ -425,7 +425,7 @@ export const workbench = {
     replace: 'Replace the whole text',
     replaceHint: 'Instead of adding to what is there. The history keeps the old text.',
     placement: 'Place',
-    placementUnplaced: 'Not on a page',
+    placementUnplaced: 'Staging',
     placementPage: (label: string) => `On ${label}`,
     placementTei:
       'The text of page breaks that name pages of the witness goes to those pages; the rest goes here.',
@@ -505,7 +505,7 @@ export const workbench = {
         o.pagesMatched ? `${plural(o.pagesMatched, 'page', 'pages')} matched` : null,
         o.pagesCreated ? `${plural(o.pagesCreated, 'page', 'pages')} added to the witness` : null,
         o.zones ? plural(o.zones, 'box', 'boxes') : null,
-        o.unplaced ? `${plural(o.unplaced, 'word', 'words')} not on a page` : null,
+        o.unplaced ? `${plural(o.unplaced, 'word', 'words')} in Staging` : null,
       ]
         .filter(Boolean)
         .join(', '),
@@ -517,8 +517,8 @@ export const workbench = {
         `${n === 1 ? '1 numbered place' : `${n} numbered places`} could not be read as labels of the work.`,
       teiPagesUnplaced: (n: number) =>
         n === 1
-          ? '1 page of the file is not a page of the witness; its text is not on a page.'
-          : `${n} pages of the file are not pages of the witness; their text is not on a page.`,
+          ? '1 page of the file is not a page of the witness; its text is in Staging.'
+          : `${n} pages of the file are not pages of the witness; their text is in Staging.`,
       layoutPagesUnplaced: (n: number) =>
         `${n === 1 ? '1 page' : `${n} pages`} of the file are not pages of the witness; their words have no zones.`,
       badSource: 'Give an http or https URL, or a CTS URN.',

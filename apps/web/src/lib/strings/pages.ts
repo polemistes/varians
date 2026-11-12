@@ -272,7 +272,7 @@ export const pageStrings = {
       const parts: string[] = [`Remove ${label}?`];
       if (words > 0) {
         parts.push(
-          `The ${plural(words, 'word', 'words')} on ${label} in ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'goes' : 'go'} to Not on a page.`,
+          `The ${plural(words, 'word', 'words')} on ${label} in ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'goes' : 'go'} to Staging.`,
         );
       }
       if (image && boxes > 0)
@@ -286,13 +286,13 @@ export const pageStrings = {
     removed: (label: string) => `${label} has been removed.`,
     /** After the removal, when text moved. */
     moved: (label: string, words: number, transcripts: number) =>
-      `${label} has been removed; ${plural(words, 'word', 'words')} of ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'is' : 'are'} now not on a page.`,
+      `${label} has been removed; ${plural(words, 'word', 'words')} of ${plural(transcripts, 'transcript', 'transcripts')} ${words === 1 ? 'is' : 'are'} now in Staging.`,
     transcription: (name: string, owner: string | null) => (owner ? `${name} (${owner})` : name),
   },
 
   /** The messages of the changes made to transcripts when the witness's pages change, as the history shows them. */
   history: {
-    removed: (label: string) => `Page ${label} removed from the witness; its text is not on a page`,
+    removed: (label: string) => `Page ${label} removed from the witness; its text is in Staging`,
     reordered: 'Pages reordered',
     reorganized: 'Pages reorganized',
   },

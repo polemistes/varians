@@ -218,7 +218,7 @@
       });
   });
 
-  /** The witness's pages before and after the one shown (from Not on a page, the first). */
+  /** The witness's pages before and after the one shown (from Staging, the first). */
   const step = $derived.by(() => {
     const at = shownPage ? witnessPages.findIndex((p) => p.id === shownPage) : -1;
     return {

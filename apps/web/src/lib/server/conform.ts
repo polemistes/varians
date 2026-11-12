@@ -46,7 +46,7 @@ export function conformed(stream: Stream, pageOrder: readonly string[]): Stream 
 export interface ConformanceReport {
   /** Page breaks removed because they named no page, or a page the witness lacks. */
   orphanBreaks: number;
-  /** Words their text sent to Not on a page. */
+  /** Words their text sent to Staging. */
   wordsUnplaced: number;
   /** Second page breaks of a page, removed; their text joined the page. */
   duplicateBreaks: number;
@@ -208,7 +208,7 @@ export function formatConformance(outcome: ConformOutcome): string {
   const parts: string[] = [];
   if (r.orphanBreaks)
     parts.push(
-      `${r.orphanBreaks} page break${r.orphanBreaks === 1 ? '' : 's'} naming no page of the witness removed, ${r.wordsUnplaced} word${r.wordsUnplaced === 1 ? '' : 's'} now not on a page`,
+      `${r.orphanBreaks} page break${r.orphanBreaks === 1 ? '' : 's'} naming no page of the witness removed, ${r.wordsUnplaced} word${r.wordsUnplaced === 1 ? '' : 's'} now in Staging`,
     );
   if (r.duplicateBreaks)
     parts.push(

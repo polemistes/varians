@@ -74,7 +74,7 @@ A transcript is for an ordered list of works, and its text may be assigned to se
 
 ### 3.4 Pages are containers of text
 
-In a transcript each page of the witness has its own text. There is no page break command and nothing to place at a caret. Text on no page is **Not on a page**: where imports without pages land, where the text of a removed page goes, and the whole of a transcript whose witness has no pages. It is text like any other: segmented, collated, exported, published.
+In a transcript each page of the witness has its own text. There is no page break command and nothing to place at a caret. Text on no page is in **Staging**, first in the page chooser: where imports without pages land, where the text of a removed page goes, and where text is typed that cannot yet be placed. It is text like any other: segmented, collated, exported, published. The whole of a transcript whose witness has no pages is text on no page, and no chooser names it.
 
 The stream keeps this shape, which the system maintains and the editor never sees: first the unplaced stretch, then for each page that has text a page break naming it, followed by that page's items. The invariants every write path keeps:
 
@@ -83,13 +83,13 @@ The stream keeps this shape, which the system maintains and the editor never see
 3. The breaks stand in the order of the witness's pages.
 4. A page's stretch may be empty; a page without a break has no text. The two mean the same.
 
-So the order of the text is the order of the pages, with Not on a page first. Reordering pages reorders text.
+So the order of the text is the order of the pages, with Staging first. Reordering pages reorders text.
 
 The invariants are kept at the one place every change to a transcript's text passes: the save. The editor makes edits that keep them, but it works from the pages it knows, and a page may be removed or moved meanwhile, a change undone, or the same page begun by two people at once. So when the operations of a save leave the stream out of shape, the server **conforms** it (`conformPages` in the core) as a second changeset, "Pages reorganized", and answers with the text as it now stands, which the editor takes up as it takes up a conflict. A save is never refused for its shape. Whatever writes a transcript's whole content or changes a witness's pages conforms as well: replacing content, bringing back a version, importing an archive, removing or reordering pages. The format still allows page breaks without a page; Varians conforms them on import.
 
 **Text is placed by moving it**: Move to Page… on a selection, and cut and paste within one workbench, move words with their ids, features, segments and history. Copy and paste makes new words. Words that move to another page lose their boxes.
 
-**Removing a page never deletes text.** Its text goes to Not on a page in every transcript of the witness, as a change in each transcript's history made by the maintainer who removed the page. The image and its boxes go with the page. Removal is never refused.
+**Removing a page never deletes text.** Its text goes to Staging in every transcript of the witness, as a change in each transcript's history made by the maintainer who removed the page. The image and its boxes go with the page. Removal is never refused.
 
 **Columns** are breaks within a page's text. A roll's columns may be registered as pages.
 
@@ -303,7 +303,7 @@ The Greek forms and the two dictionaries are not part of Varians. They are built
 ## 4. The interface
 
 - **Written for scholars of textual criticism.** No lead paragraph under a heading, no hint under a field unless it states a convention of Varians that cannot be inferred (an identifier's form, that a work is public, what a deletion takes with it). Explanations belong in the guide, which every installation serves at `/guide`.
-- **Fixed terms**: work, witness, transcript, edition, segment, page, siglum, group, conjecture, variant, reading, diplomatic and normalized, interpretative and minor variants, addition, Not on a page. A variant is a stretch where the witnesses differ, with its readings. "Text" is never a synonym for a work.
+- **Fixed terms**: work, witness, transcript, edition, segment, page, siglum, group, conjecture, variant, reading, diplomatic and normalized, interpretative and minor variants, addition, Staging. A variant is a stretch where the witnesses differ, with its readings. "Text" is never a synonym for a work.
 - **Labels** are nouns and short verbs, without example placeholders. Every heading and every label that is a name is in Title Case, as an English title is, its substantial words capitalized: the label of a button, of a menu item, of a tab, of an item of the navigation, of a column, and the name of a field or of an option (Name of Transcript, Note on Rights, No Transcript). What is a sentence or a phrase and no name is in sentence case: a message, a hint, an error, a description, what a window asks, the words beside a checkbox that say what ticking it does (Keep a diplomatic form beside the normalized), the prompt in a search field (Search the works), an option that describes (In the margin at the start of a line). So is a link that stands as text (in a sentence, under a form, in the footer), unless it is a heading. Whether a thing is clicked does not decide its case. A button or menu item that opens a window in which more is asked ends in an ellipsis; one that leads to a page or acts at once has none.
 - **A screen is the same whatever the data hold.** A control does not appear, go away or change its look for a reason the user cannot see: an option is there also when there is nothing to choose, and its list is then empty. What a person may not do at all is another matter, and is not shown to them.
 - **A screen has what its task needs and no more.** Making an edition asks which witnesses, under which sigla, with which transcripts. How the apparatus cites a witness more finely (its states under sigla of their own, the variants it notes, groups of witnesses under one siglum) is set where the apparatus is worked on, in the editor's Witnesses and Sigla… window, and is not on the page for making an edition, which keeps those things as they are.
@@ -387,5 +387,4 @@ Known gaps in what is built:
 - A word that the edition and a transcript both divide at the edge of a range copied from the transcript is two words afterwards, to be joined by hand.
 - The window for copying text offers every transcript of the conspectus, also one the person may not see, which the server then refuses.
 - A published version is not quite fixed in what it shows of conjectures and reported readings. One changed after the version was published shows as changed, and one deleted is gone from it, the records keeping no versions. What the edition has adopted is read as the draft now has it, so that adopting or taking back in the draft of a published edition alters the published version and tells its readers of it. The works cited list those cited by records entered after the version. A record brought in by an import or a sync with an earlier date enters the versions published after that date.
-- The terms of contribution and the guide's account of the licences speak of conjectures and reported readings as licensed when published with a work; they are public, and so licensed, when entered, and the terms have yet to say so.
 - Narrow screens are unchecked.

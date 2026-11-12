@@ -353,7 +353,7 @@ export function namePageBreaks(stream: Stream, pageIds: (string | null)[]): Stre
 
 // Placing an import
 
-/** Where imported text without pages of its own goes: Not on a page, or a page of the witness. */
+/** Where imported text without pages of its own goes: Staging, or a page of the witness. */
 export type Placement = { to: 'unplaced' } | { to: 'page'; pageId: string };
 
 export interface PlacedImport {
@@ -361,7 +361,7 @@ export interface PlacedImport {
   ops: Op[];
   /** The whole content after the import. */
   content: Stream;
-  /** Words that went to Not on a page. */
+  /** Words that went to Staging. */
   unplaced: number;
 }
 
@@ -369,7 +369,7 @@ export interface PlacedImport {
  * Put an imported stream into a transcription. The import's
  * page breaks that name a page of the witness (matched or created) send
  * their text to that page, appended to what it has; a page break naming no
- * page is dropped and its text goes to Not on a page, in the order of the
+ * page is dropped and its text goes to Staging, in the order of the
  * file. Text before the first page break, and all the text of an import
  * without pages, goes to `placement`. Each stretch is appended after a line
  * break when the text it joins does not end with one. The imported words
@@ -434,7 +434,7 @@ export interface ImportOutcome {
   pagesMatched: number;
   pagesCreated: number;
   zones: number;
-  /** Words that went to Not on a page. */
+  /** Words that went to Staging. */
   unplaced: number;
   warnings: string[];
 }
@@ -447,7 +447,7 @@ interface Target {
   replace: boolean;
   /** May create witness pages that the import names and the witness lacks. */
   createPages: boolean;
-  /** Where text without pages of its own goes; Not on a page when absent. */
+  /** Where text without pages of its own goes; Staging when absent. */
   placement?: Placement;
 }
 
