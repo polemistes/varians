@@ -549,6 +549,24 @@
     user-select: none;
   }
 
+  /* The language of a stretch of words, before its first word: small and muted, on the
+     baseline, so that it stays clear of the raised segment labels. */
+  .varians-editor :global(.cm-language-label) {
+    font-family: var(--font-sans, system-ui, sans-serif);
+    font-size: 0.6em;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: var(--_muted);
+    margin-inline-end: 0.35em;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .varians-editor :global(.cm-language-label::before) {
+    content: attr(data-label);
+  }
+
   /* Tooltips */
   .varians-editor :global(.cm-tooltip) {
     background: var(--_surface);

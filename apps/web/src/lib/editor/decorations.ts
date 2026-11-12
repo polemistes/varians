@@ -1,8 +1,9 @@
 /**
  * What the editor draws over the text: marks by kind, unchecked and joined
  * tokens, objects as widgets, page and column starts as rules with their
- * labels, and segment labels where a run begins in the middle of a line.
- * Everything is recomputed from the model; nothing here is stored.
+ * labels, segment labels where a run begins in the middle of a line, and
+ * the name of the language before the first word shown and every word
+ * whose language differs from the word before it. Everything is recomputed from the model; nothing here is stored.
  */
 
 import type { Range } from '@codemirror/state';
@@ -21,6 +22,7 @@ import {
   type SegmentStart,
   type Shown,
 } from '@varians/core';
+import { languageName } from '../registry/languages.ts';
 import { editor as editorText } from '../strings/editor.ts';
 import { breakLabels, editorStrings, objectLabels } from './labels.ts';
 import { lineIndex, type LineInfo } from './lines.ts';
@@ -201,6 +203,30 @@ class SegmentLabelWidget extends WidgetType {
   }
 }
 
+/** The name of the language a stretch of words is in, before its first word. */
+class LanguageLabelWidget extends WidgetType {
+  constructor(readonly lang: string) {
+    super();
+  }
+
+  override eq(other: LanguageLabelWidget): boolean {
+    return other.lang === this.lang;
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-language-label';
+    // Drawn from the attribute, so that the name is not part of the text copied or read back.
+    span.dataset.label = languageName(this.lang);
+    span.dataset.lang = this.lang;
+    return span;
+  }
+
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
 class BreakWidget extends WidgetType {
   constructor(
     readonly type: 'page' | 'column',
@@ -315,6 +341,26 @@ export function buildRunOn(model: Model): DecorationSet {
   return Decoration.set(ranges, true);
 }
 
+/**
+ * Where a stretch of words in one language begins among the words shown:
+ * the first word with a language, and every word whose language differs
+ * from the word before it, across line breaks and objects. A word without
+ * a language begins none.
+ */
+export function languageStarts(model: Model): { id: Id; from: number; lang: string }[] {
+  const out: { id: Id; from: number; lang: string }[] = [];
+  let previous: string | undefined;
+  for (const span of model.ledger.spans) {
+    if (span.kind !== 'token') continue;
+    const item = model.byId.get(span.id);
+    if (!isToken(item)) continue;
+    if (item.lang !== undefined && item.lang !== previous)
+      out.push({ id: item.id, from: span.from, lang: item.lang });
+    previous = item.lang;
+  }
+  return out;
+}
+
 /** The decorations of a model. `perLineDirection` adds `dir=auto` to every line. */
 export function buildDecorations(model: Model, perLineDirection: boolean): DecorationSet {
   if (model.misaligned) return Decoration.none;
@@ -368,6 +414,11 @@ export function buildDecorations(model: Model, perLineDirection: boolean): Decor
       const widget = new SegmentLabelWidget(segmentLabel(model, start.segment), start.span.id);
       ranges.push(Decoration.widget({ widget, side: -1 }).range(start.span.from));
     }
+  }
+  for (const start of languageStarts(model)) {
+    // Before the segment label that may stand at the same word.
+    const widget = new LanguageLabelWidget(start.lang);
+    ranges.push(Decoration.widget({ widget, side: -2 }).range(start.from));
   }
   const ends = variantEnds(model.view.stream.items);
   for (const span of model.ledger.spans) {
