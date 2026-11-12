@@ -6,6 +6,7 @@
    * link, stretched over the card, so that no control lies inside it.
    */
   import EditionActions from '$lib/components/edition/EditionActions.svelte';
+  import VersionBadge from '$lib/components/version/VersionBadge.svelte';
   import type { EditionRights } from '$lib/edition/actions';
   import { and } from '$lib/strings/names';
   import { site } from '$lib/strings/site';
@@ -27,9 +28,12 @@
 <article
   class="group relative flex h-full flex-col gap-1.5 rounded-lg border border-line bg-surface px-5 py-4 transition-colors hover:border-accent/50 hover:bg-sunken/40"
 >
-  <span class="font-sans text-xs font-medium tracking-[0.08em] text-ink-muted uppercase"
-    >{workAuthor ? `${workAuthor}, ${workTitle}` : workTitle}</span
-  >
+  <span class="flex flex-wrap items-center gap-2">
+    <span class="font-sans text-xs font-medium tracking-[0.08em] text-ink-muted uppercase"
+      >{workAuthor ? `${workAuthor}, ${workTitle}` : workTitle}</span
+    >
+    <VersionBadge {latestVersion} />
+  </span>
   <span class="font-serif text-xl leading-snug text-ink group-hover:text-accent">
     <a
       href="/editions/{slug}"

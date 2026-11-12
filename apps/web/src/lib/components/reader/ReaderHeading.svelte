@@ -1,13 +1,15 @@
 <script lang="ts">
   /**
-   * The head of the edition: what state of it is shown (a draft, a preview,
-   * an earlier version), the author and work, the title, the editors, the
-   * version line, and the preface, folded until opened and printed open.
+   * The head of the edition: what state of it is shown (the draft, a
+   * preview of it, a version at its own address), the author and work, the
+   * title, the editors, the version line with the editors' note on the
+   * version, and the preface, folded until opened and printed open.
    */
   import { LocalDate, Notice } from '$lib/components/ui';
   import type { ReaderData } from '$lib/reader/types';
   import { and } from '$lib/strings/names';
   import { reader as r } from '$lib/strings/reader';
+  import { versions as v } from '$lib/strings/versions';
 
   interface Props {
     data: Pick<ReaderData, 'edition' | 'work' | 'mode' | 'links' | 'worksCited'>;
@@ -19,6 +21,8 @@
 
   const mode = $derived(data.mode);
   const versionMode = $derived(mode.kind === 'version' ? mode : null);
+  /** The version shown, at the edition's address or its own. */
+  const shown = $derived(mode.kind === 'version' || mode.kind === 'published' ? mode : null);
   const paragraphs = $derived(
     (data.edition.preface ?? '')
       .split(/\n\s*\n/u)
@@ -58,10 +62,12 @@
     {:else if versionMode}
       <Notice kind="info">
         <span class="font-medium text-ink"
-          >{r.notices.versionTitle(versionMode.number)} <LocalDate date={versionMode.at} /></span
+          >{v.published(versionMode.number)} <LocalDate date={versionMode.at} /></span
         >.
         {versionMode.isCurrent ? r.notices.versionIsCurrent : r.notices.versionText}
-        <a href={data.links.current} class="text-accent underline">{r.notices.readCurrent}</a>
+        {#if !versionMode.isCurrent}<a href={data.links.current} class="text-accent underline"
+            >{r.notices.readCurrent}</a
+          >{/if}
       </Notice>
     {/if}
     {#if missingSegment}
@@ -79,18 +85,19 @@
       {r.editedBy(and(data.edition.editors))}
     </p>{/if}
   <p class="mt-3 font-sans text-xs text-ink-muted">
-    {#if mode.kind === 'published' && mode.number !== null && mode.at}
-      {r.version(mode.number)}, {r.published} <LocalDate date={mode.at} />
-    {:else if versionMode}
-      {r.version(versionMode.number)}, {r.published} <LocalDate date={versionMode.at} />
+    {#if shown}
+      {v.published(shown.number)} <LocalDate date={shown.at} />
     {:else if mode.kind === 'draft'}
-      {r.draftVersion(mode.version)}
-    {:else if mode.kind === 'preview'}
-      {r.previewVersion(mode.version)}
+      {r.draft}
     {:else}
-      {r.unnumbered}
+      {r.preview}
     {/if}
   </p>
+  {#if shown?.note}
+    <p class="version-note mt-1 max-w-reading font-sans text-sm whitespace-pre-line text-ink-soft">
+      {shown.note}
+    </p>
+  {/if}
 </header>
 
 {#if paragraphs.length}

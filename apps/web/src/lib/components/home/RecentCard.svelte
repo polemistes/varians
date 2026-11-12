@@ -7,7 +7,8 @@
    */
   import EditionActions from '$lib/components/edition/EditionActions.svelte';
   import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
-  import { Badge, LocalDate } from '$lib/components/ui';
+  import { LocalDate } from '$lib/components/ui';
+  import VersionBadge from '$lib/components/version/VersionBadge.svelte';
   import type { EditionRights } from '$lib/edition/actions';
   import { site } from '$lib/strings/site';
   import type { TranscriptionRights } from '$lib/transcription/actions';
@@ -47,7 +48,7 @@
 {#snippet head(kind: string)}
   <span class="flex flex-wrap items-center gap-2 font-sans text-xs text-ink-muted">
     <span class="font-medium tracking-[0.08em] uppercase">{kind}</span>
-    {#if item.latestVersion !== null}<Badge tone="success">{t.published}</Badge>{/if}
+    <VersionBadge latestVersion={item.latestVersion} />
     {#if item.shared}<span>{t.shared}</span>{/if}
   </span>
 {/snippet}

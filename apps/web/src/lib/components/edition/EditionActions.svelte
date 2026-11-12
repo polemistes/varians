@@ -2,12 +2,14 @@
   /**
    * An edition's buttons and menu, the same wherever they stand: on a card,
    * at the end of a row, in the reader's bar, in the editor's header, on
-   * Edition Settings. Every item works from here: publishing, taking back
-   * and deleting ask in the application's window, copying opens its own.
+   * Edition Settings. Every item works from here: Publish… and Withdraw
+   * Version… open their windows, deleting asks in the application's window,
+   * copying opens its own.
    */
-  import { invalidateAll } from '$app/navigation';
-  import { Button, ConfirmDialog, RecordActions, toasts } from '$lib/components/ui';
+  import { Button, ConfirmDialog, RecordActions } from '$lib/components/ui';
   import CopyDialog from '$lib/components/registry/CopyDialog.svelte';
+  import PublishDialog from '$lib/components/version/PublishDialog.svelte';
+  import WithdrawDialog from '$lib/components/version/WithdrawDialog.svelte';
   import {
     editionActions,
     type EditionDownloads,
@@ -49,62 +51,19 @@
   );
   const slug = $derived(encodeURIComponent(edition.slug));
 
-  type Asking = 'publish' | 'unpublish' | 'delete';
-  let asking = $state<Asking>('publish');
-  let confirmOpen = $state(false);
+  let publishOpen = $state(false);
+  let withdrawOpen = $state(false);
+  let deleteOpen = $state(false);
   let copyOpen = $state(false);
 
   async function act(id: string) {
     if (id === 'copy') {
       await flush?.();
       copyOpen = true;
-    } else if (id === 'publish' || id === 'unpublish' || id === 'delete') {
-      asking = id;
-      confirmOpen = true;
-    }
+    } else if (id === 'publish') publishOpen = true;
+    else if (id === 'withdraw') withdrawOpen = true;
+    else if (id === 'delete') deleteOpen = true;
   }
-
-  /** Publish or take back through the editors' endpoint; a refusal is returned to the window. */
-  async function publish(action: 'publish' | 'unpublish'): Promise<string | null> {
-    await flush?.();
-    const response = await fetch(`/api/editions/${edition.id}/publish`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      // The note on the version is asked for by the Publish… window; until it is, the version has none.
-      body: JSON.stringify({ note: '' }),
-    });
-    const body = (await response.json().catch(() => null)) as {
-      message?: string;
-      number?: number;
-    } | null;
-    if (!response.ok) return body?.message ?? response.statusText;
-    toasts.success(action === 'publish' && body?.number ? t.published(body.number) : t.unpublished);
-    await invalidateAll();
-    return null;
-  }
-
-  const ask = $derived(
-    asking === 'delete'
-      ? {
-          title: t.deleteTitle,
-          description: t.deleteBody,
-          confirmLabel: t.deleteVerb,
-          tone: 'danger' as const,
-        }
-      : asking === 'unpublish'
-        ? {
-            title: t.unpublishTitle,
-            description: t.unpublishBody,
-            confirmLabel: t.unpublishVerb,
-            tone: 'danger' as const,
-          }
-        : {
-            title: t.publishTitle,
-            description: t.publishBody,
-            confirmLabel: t.publishVerb,
-            tone: 'primary' as const,
-          },
-  );
 </script>
 
 {#snippet publishing()}
@@ -119,22 +78,21 @@
   class={className}
 />
 
-{#if rights.publish || rights.delete}
-  {#if asking === 'delete'}
-    <ConfirmDialog
-      bind:open={confirmOpen}
-      {...ask}
-      action={`/editions/${slug}/edit?/delete`}
-      fields={place === 'list' ? { stay: '1' } : {}}
-      done={t.deleted(edition.title)}
-    />
-  {:else}
-    <ConfirmDialog
-      bind:open={confirmOpen}
-      {...ask}
-      onconfirm={() => publish(asking === 'unpublish' ? 'unpublish' : 'publish')}
-    />
-  {/if}
+{#if rights.publish}
+  <PublishDialog bind:open={publishOpen} kind="edition" id={edition.id} {flush} />
+  <WithdrawDialog bind:open={withdrawOpen} kind="edition" id={edition.id} />
+{/if}
+
+{#if rights.delete}
+  <ConfirmDialog
+    bind:open={deleteOpen}
+    title={t.deleteTitle}
+    description={t.deleteBody}
+    confirmLabel={t.deleteVerb}
+    action={`/editions/${slug}/edit?/delete`}
+    fields={place === 'list' ? { stay: '1' } : {}}
+    done={t.deleted(edition.title)}
+  />
 {/if}
 
 {#if rights.signedIn && (rights.edit || edition.published)}

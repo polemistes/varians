@@ -2,13 +2,24 @@ import { describe, expect, it } from 'vitest';
 import type { MenuEntry } from '$lib/record/actions';
 import { NO_TRANSCRIPTION_RIGHTS, transcriptionActions, type TranscriptionRights } from './actions';
 
-const owner: TranscriptionRights = { signedIn: true, edit: true, delete: true };
-/** One who edits it through an edition that names it, or a site editor: may not delete. */
-const collaborator: TranscriptionRights = { signedIn: true, edit: true, delete: false };
-const stranger: TranscriptionRights = { signedIn: true, edit: false, delete: false };
+const owner: TranscriptionRights = { signedIn: true, edit: true, publish: true, delete: true };
+/** One who edits it through an edition that names it, or a site editor: may not publish or delete. */
+const collaborator: TranscriptionRights = {
+  signedIn: true,
+  edit: true,
+  publish: false,
+  delete: false,
+};
+const stranger: TranscriptionRights = {
+  signedIn: true,
+  edit: false,
+  publish: false,
+  delete: false,
+};
 const visitor = NO_TRANSCRIPTION_RIGHTS;
 
-const transcription = { id: 'T1' };
+const transcription = { id: 'T1', latestVersion: 2 };
+const draft = { id: 'T1', latestVersion: null };
 
 /** The menu as a list of words: the item ids, a label as `[Label]`, a separator as `|`. */
 function shape(menu: MenuEntry[]): string[] {
@@ -22,9 +33,22 @@ const downloads = ['[Download]', 'tei', 'leiden'];
 describe('the menu of a transcript', () => {
   it('has every item in its fixed order for its owner', () => {
     const { menu } = transcriptionActions(transcription, owner, 'workbench');
-    expect(shape(menu)).toEqual(['settings', '|', 'copy', '|', ...downloads, '|', 'delete']);
+    expect(shape(menu)).toEqual([
+      'settings',
+      '|',
+      'publish',
+      'withdraw',
+      '|',
+      'copy',
+      '|',
+      ...downloads,
+      '|',
+      'delete',
+    ]);
     expect(menu.map((m) => ('label' in m ? m.label : null)).filter(Boolean)).toEqual([
       'Settings…',
+      'Publish…',
+      'Withdraw Version…',
       'Make a Copy…',
       'Download',
       'TEI XML',
@@ -33,13 +57,22 @@ describe('the menu of a transcript', () => {
     ]);
   });
 
-  it('has no group for publishing: a transcript is published with its edition', () => {
-    for (const rights of [owner, collaborator, stranger, visitor])
+  it('offers publishing and withdrawing to the owner only', () => {
+    for (const rights of [collaborator, stranger, visitor])
       expect(
         shape(transcriptionActions(transcription, rights, 'workbench').menu).filter((id) =>
-          /publish/i.test(id),
+          /publish|withdraw/.test(id),
         ),
       ).toEqual([]);
+  });
+
+  it('shows Withdraw Version… disabled with its reason while no version stands', () => {
+    const withdraw = (subject: typeof draft | typeof transcription) =>
+      transcriptionActions(subject, owner, 'workbench').menu.find(
+        (m) => m.kind === 'action' && m.id === 'withdraw',
+      );
+    expect(withdraw(draft)).toMatchObject({ disabled: 'No version to withdraw.' });
+    expect(withdraw(transcription)).not.toHaveProperty('disabled');
   });
 
   it('gives one who may edit it the settings, the copy and the downloads', () => {
@@ -93,7 +126,11 @@ describe('the menu of a transcript', () => {
   });
 
   it('links the downloads to the files of the transcript', () => {
-    const menu = transcriptionActions({ id: 'T 1' }, visitor, 'workbench').menu;
+    const menu = transcriptionActions(
+      { id: 'T 1', latestVersion: null },
+      visitor,
+      'workbench',
+    ).menu;
     expect(menu).toContainEqual(
       expect.objectContaining({ id: 'tei', href: '/transcriptions/T%201/tei', file: true }),
     );

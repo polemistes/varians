@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { Badge, LocalDate } from '$lib/components/ui';
+  import { LocalDate } from '$lib/components/ui';
+  import VersionBadge from '$lib/components/version/VersionBadge.svelte';
 
   interface Props {
     href: string;
@@ -10,12 +11,14 @@
     owner?: string | null;
     /** ISO date; shown in the reader's locale after mount. */
     date: string;
-    badge?: string;
+    /** The record's latest version, or null for a draft: its badge. Left out, no badge. */
+    latestVersion?: number | null;
     /** What may be done with the record, at the row's end. */
     actions?: Snippet;
   }
 
-  let { href, title, subtitle, subtitleHref, owner, date, badge, actions }: Props = $props();
+  let { href, title, subtitle, subtitleHref, owner, date, latestVersion, actions }: Props =
+    $props();
 </script>
 
 <!-- With buttons at its end, the row's parts stand on its middle line; without, on the title's baseline. -->
@@ -42,7 +45,7 @@
     {/if}
   </div>
   <div class="flex shrink-0 items-center gap-3 font-sans text-xs text-ink-muted">
-    {#if badge}<Badge>{badge}</Badge>{/if}
+    {#if latestVersion !== undefined}<VersionBadge {latestVersion} />{/if}
     {#if owner}<span class="max-w-40 truncate">{owner}</span>{/if}
     <LocalDate {date} />
   </div>

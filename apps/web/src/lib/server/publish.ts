@@ -207,7 +207,7 @@ export async function publishEdition(
       else if (t.ownerId === edition.ownerId) toPublish.push(t.transcriptionId);
       else refused.push(v.witnessNamed(t.siglum, t.witness));
     }
-    if (refused.length) throw new PublishRefused(v.othersUnpublished(refused));
+    if (refused.length) throw new PublishRefused(v.othersNotPublished(refused));
     for (const id of toPublish) {
       const made = await publishTranscriptionIn(
         tx,

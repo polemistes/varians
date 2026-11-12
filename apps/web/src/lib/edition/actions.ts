@@ -6,6 +6,7 @@
  */
 import { joinGroups, type MenuEntry, type RecordActions } from '$lib/record/actions';
 import { recordActions } from '$lib/strings/record-actions';
+import { versions as v } from '$lib/strings/versions';
 
 const t = recordActions.edition;
 
@@ -22,11 +23,12 @@ export interface EditionRights {
 
 export interface EditionSubject {
   slug: string;
+  /** It has a version that is not withdrawn. */
   published: boolean;
 }
 
 /** The ids of the menu's items that the page does, rather than leads to. */
-export type EditionActionId = 'publish' | 'unpublish' | 'copy' | 'delete';
+export type EditionActionId = 'publish' | 'withdraw' | 'copy' | 'delete';
 
 /** The addresses of the downloads; in the reader, of the state shown. */
 export interface EditionDownloads {
@@ -83,10 +85,18 @@ export function editionActions(
     rights.edit && place !== 'settings'
       ? [{ kind: 'link', id: 'settings', label: t.settings, href: `${base}/settings` }]
       : [];
-  const publishing: MenuEntry[] = [];
-  if (rights.publish) {
-    publishing.push({ kind: 'action', id: 'publish', label: t.publish });
-  }
+  // Withdraw Version… is there whenever Publish… is, and says why while no version stands.
+  const publishing: MenuEntry[] = rights.publish
+    ? [
+        { kind: 'action', id: 'publish', label: t.publish },
+        {
+          kind: 'action',
+          id: 'withdraw',
+          label: t.withdraw,
+          ...(edition.published ? {} : { disabled: v.withdraw.nothing }),
+        },
+      ]
+    : [];
   const copying: MenuEntry[] =
     rights.signedIn && (rights.edit || edition.published)
       ? [{ kind: 'action', id: 'copy', label: t.copy }]

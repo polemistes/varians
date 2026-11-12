@@ -1,6 +1,6 @@
 <script lang="ts">
   import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
-  import { Badge } from '$lib/components/ui';
+  import VersionBadge from '$lib/components/version/VersionBadge.svelte';
   import type { WitnessTranscriptionRow } from '$lib/registry/types';
   import { registry } from '$lib/strings/registry';
   import type { TranscriptionRights } from '$lib/transcription/actions';
@@ -44,7 +44,7 @@
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
-        {#if item.latestVersion === null}<Badge>{s.draft}</Badge>{/if}
+        <VersionBadge latestVersion={item.latestVersion} />
         <!-- A row without a menu keeps its room, so that the badges stand in line. -->
         <div class="w-8 shrink-0">
           <TranscriptionActions transcription={item} rights={item.can} place="list" />

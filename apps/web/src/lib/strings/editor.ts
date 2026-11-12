@@ -75,7 +75,6 @@ export const editor = {
     save: 'Save',
     saved: 'Saved',
     notSaved: 'Not saved.',
-    draft: 'Draft',
     sigla: {
       title: 'Witnesses and Sigla',
     },

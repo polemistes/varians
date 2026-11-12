@@ -38,8 +38,6 @@ export const site = {
     edition: 'Edition',
     transcription: 'Transcript',
     shared: 'shared with you',
-    draft: 'Draft',
-    published: 'Published',
     editionOf: (work: string) => `of ${work}`,
     transcriptionOf: (witness: string) => `of ${witness}`,
     changed: 'changed',

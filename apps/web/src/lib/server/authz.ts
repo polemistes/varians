@@ -258,6 +258,7 @@ export function transcriptionRights(
   return {
     signedIn: !!user,
     edit: canEditTranscription(user, transcription, grants),
+    publish: canPublishTranscription(user, transcription),
     delete: canDeleteTranscription(user, transcription),
   };
 }

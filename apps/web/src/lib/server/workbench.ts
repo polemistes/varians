@@ -71,7 +71,13 @@ import { previewTei } from './import/tei.ts';
 import { LanguageMissing, withLanguage } from './import/language.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { loadTranscriptionAccess } from './transcription-access.ts';
-import { latestVersionWithSnapshot, versionByNumber, versionsOf } from './versions.ts';
+import {
+  latestVersionWithSnapshot,
+  versionByNumber,
+  versionsOf,
+  type VersionSummary,
+} from './versions.ts';
+import type { ReaderVersion } from '$lib/reader/types';
 import { worksOfTranscription } from './transcription-works.ts';
 import { grantsFor } from './authz.ts';
 import { candidateWitnesses, editionsOfWork } from './editions.ts';
@@ -136,6 +142,10 @@ export interface WorkbenchData {
     latestVersion: number | null;
     /** The number of the version shown, read only; null for the draft. */
     shownVersion: number | null;
+    /** When the version shown was published, and the note on it; null for the draft. */
+    shown: { at: string; note: string | null } | null;
+    /** Every version, newest first, withdrawn ones among them, each at its own address. */
+    versions: ReaderVersion[];
     sources: string | null;
     rightsNote: string | null;
     /** The licence fixed at publication, by name, and the installation's, which publication would give. */
@@ -157,6 +167,10 @@ export interface WorkbenchData {
   /** Label and work of every segment the content names. */
   segments: Record<string, { label: string; workId: string }>;
   canEdit: boolean;
+  /** May publish and withdraw versions: the owner, or an administrator. */
+  canPublish: boolean;
+  /** May edit the draft, whether or not it is the state shown. */
+  canEditDraft: boolean;
   canDelete: boolean;
   /** May add pages to the witness (an import that brings pages the witness lacks). */
   canMaintainWitness: boolean;
@@ -167,12 +181,36 @@ export interface WithdrawnTranscriptionVersion {
   transcription: { id: string; name: string };
   witness: { name: string; siglum: string; slug: string };
   number: number;
-  /** When the version was published, and the note on it. */
+  /** When the version was published, by whom (the name the citation gives), and the note on it. */
   at: string;
+  personName: string | null;
   note: string | null;
   withdrawn: { at: string; note: string | null };
+  /** The licence the version was published under, by name, for its citation. */
+  licence: string | null;
   /** The transcription's address, which shows its latest version, or null when it has none any more. */
   current: string | null;
+  /** Every version, newest first, withdrawn ones among them, each at its own address. */
+  versions: ReaderVersion[];
+}
+
+/**
+ * The versions of a transcription as its Versions menu lists them, newest
+ * first: each leads to its own address, which shows it read only to anyone
+ * (the transcription's plain address shows its editors the draft).
+ */
+function transcriptionVersionList(id: string, all: VersionSummary[]): ReaderVersion[] {
+  const latest = all.find((v) => !v.withdrawn)?.number ?? null;
+  const base = `/transcriptions/${encodeURIComponent(id)}`;
+  return all.map((v) => ({
+    number: v.number,
+    at: v.at.toISOString(),
+    note: v.note,
+    withdrawn: v.withdrawn ? { at: v.withdrawn.at.toISOString(), note: v.withdrawn.note } : null,
+    changes: v.changes,
+    href: `${base}/v/${v.number}`,
+    current: v.number === latest,
+  }));
 }
 
 /**
@@ -202,9 +240,12 @@ export async function loadWithdrawnTranscriptionVersion(
     },
     number,
     at: asked.at.toISOString(),
+    personName: asked.personName,
     note: asked.note,
     withdrawn: { at: asked.withdrawn.at.toISOString(), note: asked.withdrawn.note },
+    licence: licenceInfo(snapshot.licenceId)?.name ?? null,
     current: all.some((v) => !v.withdrawn) ? `/transcriptions/${encodeURIComponent(id)}` : null,
+    versions: transcriptionVersionList(id, all),
   };
 }
 
@@ -275,6 +316,13 @@ export async function loadWorkbench(
       memory: transcription.memory,
       latestVersion: latest?.number ?? null,
       shownVersion: shownNumber,
+      shown: shown
+        ? {
+            at: shown.at.toISOString(),
+            note: all.find((v) => v.number === shownNumber)?.note ?? null,
+          }
+        : null,
+      versions: transcriptionVersionList(id, all),
       sources: transcription.sources,
       rightsNote: transcription.rightsNote,
       licence: licenceInfo(transcription.licenceId)?.name ?? null,
@@ -295,6 +343,8 @@ export async function loadWorkbench(
     ),
     // A version is read only, to its editors too.
     canEdit: access.canEdit && shownNumber === null,
+    canPublish: access.canPublish,
+    canEditDraft: access.canEdit,
     canDelete: access.canDelete,
     canMaintainWitness: canMaintainWitness(
       user,

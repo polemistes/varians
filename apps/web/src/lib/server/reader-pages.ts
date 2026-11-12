@@ -15,6 +15,7 @@ import { and } from '$lib/strings/names';
 import { error } from '@sveltejs/kit';
 import {
   exportEditionTei,
+  licenceInfo,
   type EditionBibliography,
   type Item,
   type LayoutLine,
@@ -202,6 +203,7 @@ export async function loadWithdrawnVersion(
     at: asked.at.toISOString(),
     note: asked.note,
     withdrawn: { at: asked.withdrawn!.at.toISOString(), note: asked.withdrawn!.note },
+    licence: licenceInfo(snapshot?.licenceId ?? access.edition.licenceId)?.name ?? null,
     current: latest ? `/editions/${encodeURIComponent(access.edition.slug)}` : null,
     versions: readerVersions(access.edition.slug, versions, latest?.number ?? null),
   };
@@ -410,9 +412,9 @@ export function versionLine(mode: ReaderMode): string {
     case 'version':
       return `${r.version(mode.number)}, ${r.published} ${mode.at.slice(0, 10)}`;
     case 'draft':
-      return r.draftVersion(mode.version);
+      return r.draft;
     case 'preview':
-      return r.previewVersion(mode.version);
+      return r.preview;
   }
 }
 

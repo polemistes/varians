@@ -6,10 +6,12 @@
   import { page } from '$app/state';
   import { LocalDate } from '$lib/components/ui';
   import { languageName } from '$lib/registry/languages';
+  import { versionCitation } from '$lib/reader/citation';
   import type { ReaderData } from '$lib/reader/types';
   import { and } from '$lib/strings/names';
   import { reader as r } from '$lib/strings/reader';
   import { recordActions } from '$lib/strings/record-actions';
+  import { versions as v } from '$lib/strings/versions';
 
   interface Props {
     exports: ReaderData['exports'];
@@ -46,15 +48,14 @@
       mode.kind === 'version' ? mode.number : mode.kind === 'published' ? mode.number : null;
     const at = mode.kind === 'version' ? mode.at : mode.kind === 'published' ? mode.at : null;
     if (number === null || at === null) return null;
-    const address = `${page.url.origin}/editions/${encodeURIComponent(cite.slug)}/v/${number}`;
-    return r.colophon.citation(
-      and(cite.editors),
-      cite.title,
-      r.version(number),
-      at.slice(0, 10),
-      address,
-      licence?.name ?? null,
-    );
+    return versionCitation({
+      editors: cite.editors,
+      title: cite.title,
+      number,
+      at,
+      address: `${page.url.origin}/editions/${encodeURIComponent(cite.slug)}/v/${number}`,
+      licence: licence?.name ?? null,
+    });
   });
 </script>
 
@@ -82,7 +83,9 @@
       {#each versions as version, k (version.number)}{k > 0 ? ', ' : ''}<a href={version.href}
           >{r.version(version.number)}</a
         >
-        (<LocalDate date={version.at} />{version.current ? `, ${r.colophon.current}` : ''}){/each}
+        (<LocalDate date={version.at} />{version.current
+          ? `, ${v.menu.current}`
+          : ''}{version.withdrawn ? `, ${v.menu.withdrawn}` : ''}){/each}
     </p>
   {/if}
   {#if languages.length}

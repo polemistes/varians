@@ -44,7 +44,7 @@
           subtitle={h.editionOf(edition.workTitle)}
           subtitleHref="/works/{edition.workSlug}"
           date={edition.updatedAt}
-          badge={edition.latestVersion !== null ? h.published : h.draft}
+          latestVersion={edition.latestVersion}
         >
           {#snippet actions()}{@render editionActions(edition)}{/snippet}
         </RecordRow>
@@ -62,7 +62,7 @@
           subtitle={h.transcriptionOf(transcription.witnessName)}
           subtitleHref="/witnesses/{transcription.witnessSlug}"
           date={transcription.updatedAt}
-          badge={transcription.latestVersion !== null ? h.published : h.draft}
+          latestVersion={transcription.latestVersion}
         >
           {#snippet actions()}{@render transcriptionActions(transcription)}{/snippet}
         </RecordRow>
@@ -81,6 +81,7 @@
           subtitleHref="/works/{edition.workSlug}"
           owner={edition.ownerName}
           date={edition.updatedAt}
+          latestVersion={edition.latestVersion}
         >
           {#snippet actions()}{@render editionActions(edition)}{/snippet}
         </RecordRow>
@@ -93,6 +94,7 @@
           subtitleHref="/witnesses/{transcription.witnessSlug}"
           owner={transcription.ownerName}
           date={transcription.updatedAt}
+          latestVersion={transcription.latestVersion}
         >
           {#snippet actions()}{@render transcriptionActions(transcription)}{/snippet}
         </RecordRow>

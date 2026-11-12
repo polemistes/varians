@@ -26,6 +26,7 @@ describe('the menu of an edition', () => {
       'settings',
       '|',
       'publish',
+      'withdraw',
       '|',
       'copy',
       '|',
@@ -36,6 +37,7 @@ describe('the menu of an edition', () => {
     expect(menu.map((m) => ('label' in m ? m.label : null)).filter(Boolean)).toEqual([
       'Edition Settings',
       'Publish…',
+      'Withdraw Version…',
       'Make a Copy…',
       'Download',
       'TEI XML',
@@ -44,11 +46,12 @@ describe('the menu of an edition', () => {
     ]);
   });
 
-  it('offers Publish… for a draft as for an edition with a version', () => {
+  it('offers Publish… and Withdraw Version… for a draft as for an edition with a version', () => {
     expect(shape(editionActions(draft, owner, 'list').menu)).toEqual([
       'settings',
       '|',
       'publish',
+      'withdraw',
       '|',
       'copy',
       '|',
@@ -56,6 +59,15 @@ describe('the menu of an edition', () => {
       '|',
       'delete',
     ]);
+  });
+
+  it('shows Withdraw Version… disabled with its reason while no version stands', () => {
+    const withdraw = (edition: typeof draft) =>
+      editionActions(edition, owner, 'reader').menu.find(
+        (m) => m.kind === 'action' && m.id === 'withdraw',
+      );
+    expect(withdraw(draft)).toMatchObject({ disabled: 'No version to withdraw.' });
+    expect(withdraw(published)).not.toHaveProperty('disabled');
   });
 
   it('gives a collaborator the settings, the copy and the downloads', () => {

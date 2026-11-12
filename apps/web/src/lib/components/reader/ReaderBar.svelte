@@ -2,26 +2,20 @@
   /**
    * The reader's header, kept in view: the edition and the state shown,
    * search, the gear, the panels (variants, witnesses, facsimile, dictionary),
-   * the menu of the published versions (and, for its editors, the draft),
-   * then Edit and the edition's menu.
+   * the Versions menu (and in it, for its editors, the draft), then Edit and
+   * the edition's menu.
    */
   import Eye from '@lucide/svelte/icons/eye';
-  import History from '@lucide/svelte/icons/history';
   import ImageIcon from '@lucide/svelte/icons/image';
   import BookOpen from '@lucide/svelte/icons/book-open';
   import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Split from '@lucide/svelte/icons/split';
-  import {
-    IconButton,
-    LocalDate,
-    Menu,
-    MenuItem,
-    MenuLabel,
-    MenuSeparator,
-  } from '$lib/components/ui';
+  import { IconButton, MenuItem } from '$lib/components/ui';
+  import VersionsMenu from '$lib/components/version/VersionsMenu.svelte';
   import type { ReaderSettings } from '$lib/reader/settings';
   import type { ReaderData } from '$lib/reader/types';
   import { reader as r } from '$lib/strings/reader';
+  import { versions as v } from '$lib/strings/versions';
   import ReaderGear from './ReaderGear.svelte';
   import ReaderSearch from './ReaderSearch.svelte';
   import EditionActions from '$lib/components/edition/EditionActions.svelte';
@@ -69,16 +63,29 @@
     const mode = data.mode;
     switch (mode.kind) {
       case 'published':
-        return mode.number !== null ? r.version(mode.number) : r.unnumbered;
       case 'version':
-        return r.version(mode.number);
+        return v.version(mode.number);
       case 'draft':
         return r.draft;
       case 'preview':
-        return r.notices.previewLabel;
+        return r.preview;
     }
   });
 </script>
+
+{#snippet draftItems()}
+  {#if data.mode.kind === 'preview'}
+    <MenuItem href={data.links.current}>
+      {#snippet icon()}<Eye aria-hidden="true" />{/snippet}
+      {r.menu.published}
+    </MenuItem>
+  {:else if data.links.preview}
+    <MenuItem href={data.links.preview}>
+      {#snippet icon()}<Eye aria-hidden="true" />{/snippet}
+      {r.menu.preview}
+    </MenuItem>
+  {/if}
+{/snippet}
 
 <div class="reader-bar reader-bar-root">
   <div class="mx-auto flex h-12 w-full max-w-page items-center gap-1.5 px-4 sm:gap-2 sm:px-8">
@@ -125,38 +132,10 @@
         <BookOpen aria-hidden="true" />
       </IconButton>
     {/if}
-    <Menu label={r.toolbar.versions} triggerSize="sm" triggerClass="px-2" class="min-w-60">
-      {#snippet trigger()}
-        <History class="size-4 text-ink-soft" aria-hidden="true" />
-        <span class="hidden text-ink-soft md:inline">{r.toolbar.versions}</span>
-      {/snippet}
-      <MenuLabel>{r.menu.versions}</MenuLabel>
-      {#each data.versions as version (version.number)}
-        <MenuItem href={version.href}>
-          <span class="flex-1"
-            >{r.version(version.number)}{version.current ? ` (${r.menu.current})` : ''}</span
-          >
-          <LocalDate date={version.at} class="text-xs text-ink-muted" />
-        </MenuItem>
-      {:else}
-        <MenuItem disabled>{r.menu.noVersions}</MenuItem>
-      {/each}
-      {#if data.links.preview || data.mode.kind === 'preview'}
-        <MenuSeparator />
-        {#if data.links.preview && data.mode.kind !== 'preview'}
-          <MenuItem href={data.links.preview}>
-            {#snippet icon()}<Eye aria-hidden="true" />{/snippet}
-            {r.menu.preview}
-          </MenuItem>
-        {/if}
-        {#if data.mode.kind === 'preview'}
-          <MenuItem href={data.links.current}>
-            {#snippet icon()}<Eye aria-hidden="true" />{/snippet}
-            {r.menu.published}
-          </MenuItem>
-        {/if}
-      {/if}
-    </Menu>
+    <VersionsMenu
+      versions={data.versions}
+      after={data.links.preview || data.mode.kind === 'preview' ? draftItems : undefined}
+    />
     <EditionActions
       edition={{
         id: data.edition.id,

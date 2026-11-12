@@ -1,6 +1,10 @@
 <script lang="ts">
+  /** A version of an edition in the reader; a withdrawn one, its citation and the withdrawal. */
+  import { page } from '$app/state';
   import Reader from '$lib/components/reader/Reader.svelte';
-  import { LocalDate } from '$lib/components/ui';
+  import WithdrawnVersion from '$lib/components/version/WithdrawnVersion.svelte';
+  import { versionCitation } from '$lib/reader/citation';
+  import { and } from '$lib/strings/names';
   import { reader as r } from '$lib/strings/reader';
   import type { PageProps } from './$types';
 
@@ -8,22 +12,26 @@
 </script>
 
 {#if data.withdrawn}
-  <!-- A withdrawn version: its citation and the withdrawal, and no text. -->
-  <main class="mx-auto max-w-3xl px-4 py-8 font-sans">
-    <h1 class="font-serif text-2xl">{data.withdrawn.edition.title}</h1>
-    <p>
-      {r.notices.withdrawnTitle(data.withdrawn.number)}.
-      {r.version(data.withdrawn.number)}, {r.published}
-      <LocalDate date={data.withdrawn.at} />.
-    </p>
-    <p>
-      {r.notices.withdrawnOn(data.withdrawn.withdrawn.at.slice(0, 10))}
-      {data.withdrawn.withdrawn.note ?? ''}
-    </p>
-    {#if data.withdrawn.current}
-      <p><a href={data.withdrawn.current}>{r.notices.readCurrent}</a></p>
-    {/if}
-  </main>
+  {@const w = data.withdrawn}
+  <WithdrawnVersion
+    kicker={r.authorAndWork(w.work.author, w.work.title)}
+    title={w.edition.title}
+    byline={w.edition.editors.length ? r.editedBy(and(w.edition.editors)) : null}
+    number={w.number}
+    at={w.at}
+    note={w.note}
+    withdrawn={w.withdrawn}
+    citation={versionCitation({
+      editors: w.edition.editors,
+      title: w.edition.title,
+      number: w.number,
+      at: w.at,
+      address: `${page.url.origin}/editions/${encodeURIComponent(w.edition.slug)}/v/${w.number}`,
+      licence: w.licence,
+    })}
+    current={w.current}
+    versions={w.versions}
+  />
 {:else}
   <Reader {data} />
 {/if}

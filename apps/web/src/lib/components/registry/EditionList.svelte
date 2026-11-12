@@ -1,7 +1,8 @@
 <script lang="ts">
   /** The editions of a work: the name leads to the reader; Read, Edit and the menu for those who may edit. */
   import EditionActions from '$lib/components/edition/EditionActions.svelte';
-  import { Badge, LocalDate } from '$lib/components/ui';
+  import { LocalDate } from '$lib/components/ui';
+  import VersionBadge from '$lib/components/version/VersionBadge.svelte';
   import type { EditionRights } from '$lib/edition/actions';
   import type { WorkEditionRow } from '$lib/registry/types';
   import { and } from '$lib/strings/names';
@@ -32,7 +33,7 @@
           <LocalDate date={item.updatedAt} />
         </p>
       </div>
-      {#if item.latestVersion === null}<Badge>{registry.common.draft}</Badge>{/if}
+      <VersionBadge latestVersion={item.latestVersion} />
       <EditionActions
         edition={{
           id: item.id,

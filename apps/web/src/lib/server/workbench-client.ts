@@ -31,6 +31,8 @@ export function clientData(data: WorkbenchData) {
     works: data.works,
     segments: data.segments,
     canEdit: data.canEdit,
+    canPublish: data.canPublish,
+    canEditDraft: data.canEditDraft,
     canDelete: data.canDelete,
     canMaintainWitness: data.canMaintainWitness,
     maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES,

@@ -153,9 +153,10 @@ describe('versionLine', () => {
     expect(versionLine({ kind: 'published', number: 2, at: at(2).toISOString(), note: null })).toBe(
       'Version 2, published 2026-10-02',
     );
-    expect(versionLine({ kind: 'draft', version: 4 })).toBe('Draft, version 4');
+    // The draft has no number: a version is what is published.
+    expect(versionLine({ kind: 'draft', version: 4 })).toBe('Draft');
     expect(versionLine({ kind: 'preview', version: 7, publishedNumber: 2 })).toBe(
-      'Preview of the draft, version 7',
+      'Preview of the draft',
     );
   });
 });

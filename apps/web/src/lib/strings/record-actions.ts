@@ -46,6 +46,8 @@ export const recordActions = {
   /** A transcript: read where it is edited, so it has no Read and Edit buttons. */
   transcription: {
     settings: 'Settings…',
+    publish: 'Publish…',
+    withdraw: 'Withdraw Version…',
     copy: 'Make a Copy…',
     download: 'Download',
     tei: 'TEI XML',
@@ -135,7 +137,7 @@ export const recordActions = {
 
     settings: 'Edition Settings',
     publish: 'Publish…',
-    unpublish: 'Unpublish…',
+    withdraw: 'Withdraw Version…',
     copy: 'Make a Copy…',
     download: 'Download',
     tei: 'TEI XML',
@@ -145,15 +147,6 @@ export const recordActions = {
     /** The editor's own button, besides the menu's item. */
     publishButton: 'Publish',
 
-    publishTitle: 'Publish Edition',
-    publishBody:
-      'Publish the edition as it stands now? Readers will see this version, and it stays citable when you go on editing.',
-    publishVerb: 'Publish',
-    published: (n: number) => `Published as version ${n}.`,
-    unpublishTitle: 'Unpublish Edition',
-    unpublishBody: 'Take the edition back to a draft? Readers will no longer find it.',
-    unpublishVerb: 'Unpublish',
-    unpublished: 'The edition is a draft again.',
     deleteTitle: 'Delete Edition',
     deleteBody:
       'Delete this edition? Its text, notes and history go with it. The witnesses and conjectures stay.',

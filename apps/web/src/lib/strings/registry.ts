@@ -312,8 +312,6 @@ export const registry = {
     notFound: 'This transcript no longer exists.',
     sourceNotAllowed: 'You may not view the transcript to start from.',
     owner: (name: string) => `by ${name}`,
-    draft: 'Draft',
-    published: 'Published',
     assigns: (work: string, n: number) => `${work}: ${n === 1 ? '1 segment' : `${n} segments`}`,
     unassigned: 'No text assigned to a work yet',
     nameOfWork: (work: string) => work,
@@ -519,8 +517,6 @@ export const registry = {
     invalidCitations: 'The citations could not be read; choose them again.',
     cancel: 'Cancel',
     save: 'Save',
-    draft: 'Draft',
-    published: 'Published',
     and,
     /** What depends on an entry, for the refusal of a deletion. */
     dependents: (d: {

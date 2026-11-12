@@ -4,13 +4,12 @@
  * its name leads there and it has no Read and Edit buttons: only the menu,
  * the same in the workbench's header, in the rows of a witness's page and a
  * work's page, on Your Work and on the front page's Continue. An item is
- * there only for those who may do it.
- *
- * There is no publishing item: a transcript is published with the edition
- * that names it, and taken back with it.
+ * there only for those who may do it. A transcript is published from its
+ * menu, as well as with an edition that compares it.
  */
 import { joinGroups, type MenuEntry, type RecordActions } from '$lib/record/actions';
 import { recordActions } from '$lib/strings/record-actions';
+import { versions as v } from '$lib/strings/versions';
 
 const t = recordActions.transcription;
 
@@ -22,6 +21,8 @@ export interface TranscriptionRights {
   signedIn: boolean;
   /** Change its text and its settings: the owner, those who edit an edition that names it, site editors. */
   edit: boolean;
+  /** Publish and withdraw its versions: the owner, or an administrator. */
+  publish: boolean;
   /** Delete it: the owner, or an administrator. */
   delete: boolean;
 }
@@ -29,11 +30,18 @@ export interface TranscriptionRights {
 export const NO_TRANSCRIPTION_RIGHTS: TranscriptionRights = {
   signedIn: false,
   edit: false,
+  publish: false,
   delete: false,
 };
 
+export interface TranscriptionSubject {
+  id: string;
+  /** The number of its latest version that is not withdrawn; null while none stands. */
+  latestVersion: number | null;
+}
+
 /** The ids of the menu's items that the page does, rather than leads to. */
-export type TranscriptionActionId = 'settings' | 'copy' | 'delete';
+export type TranscriptionActionId = 'settings' | 'publish' | 'withdraw' | 'copy' | 'delete';
 
 /** The addresses of the downloads. */
 export function transcriptionDownloads(id: string): { tei: string; leiden: string } {
@@ -47,15 +55,27 @@ export function transcriptionDownloads(id: string): { tei: string; leiden: strin
  * everyone, with what they may do: for a reader, copying and the downloads.
  */
 export function transcriptionActions(
-  transcription: { id: string },
+  transcription: TranscriptionSubject,
   rights: TranscriptionRights,
   place: TranscriptionPlace,
 ): RecordActions {
-  if (place === 'list' && !rights.edit && !rights.delete) return { buttons: [], menu: [] };
+  if (place === 'list' && !rights.edit && !rights.publish && !rights.delete)
+    return { buttons: [], menu: [] };
 
   const downloads = transcriptionDownloads(transcription.id);
   const settings: MenuEntry[] = rights.edit
     ? [{ kind: 'action', id: 'settings', label: t.settings }]
+    : [];
+  const publishing: MenuEntry[] = rights.publish
+    ? [
+        { kind: 'action', id: 'publish', label: t.publish },
+        {
+          kind: 'action',
+          id: 'withdraw',
+          label: t.withdraw,
+          ...(transcription.latestVersion !== null ? {} : { disabled: v.withdraw.nothing }),
+        },
+      ]
     : [];
   const copying: MenuEntry[] = rights.signedIn
     ? [{ kind: 'action', id: 'copy', label: t.copy }]
@@ -69,5 +89,8 @@ export function transcriptionActions(
     ? [{ kind: 'action', id: 'delete', label: t.delete, danger: true }]
     : [];
 
-  return { buttons: [], menu: joinGroups([settings, copying, downloading, deleting]) };
+  return {
+    buttons: [],
+    menu: joinGroups([settings, publishing, copying, downloading, deleting]),
+  };
 }

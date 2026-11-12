@@ -240,7 +240,7 @@ afterAll(async () => {
 type Row = { id: string; can: Record<string, boolean> };
 const canOf = (rows: unknown, id: string) => (rows as Row[]).find((r) => r.id === id)?.can;
 
-const ownerRights = { signedIn: true, edit: true, delete: true };
+const ownerRights = { signedIn: true, edit: true, publish: true, delete: true };
 
 describe('the rights a list gives each transcript', () => {
   it('on Your Work: the owner may do everything with their own', async () => {
@@ -254,6 +254,7 @@ describe('the rights a list gives each transcript', () => {
     expect(canOf(shared.transcriptions, ids.draft)).toEqual({
       signedIn: true,
       edit: true,
+      publish: false,
       delete: false,
     });
     expect(canOf(shared.transcriptions, ids.spare)).toBeUndefined();
@@ -263,25 +264,24 @@ describe('the rights a list gives each transcript', () => {
     const forViewer = async (who: CurrentUser | null, id: string) =>
       canOf((await run(witnessPage, who, { slug: witnessSlug })).data!.transcriptions, id);
     expect(await forViewer(owner, ids.published)).toEqual(ownerRights);
-    expect(await forViewer(administrator, ids.published)).toEqual({
-      signedIn: true,
-      edit: true,
-      delete: true,
-    });
-    // A site editor may edit anything and delete nothing.
+    expect(await forViewer(administrator, ids.published)).toEqual(ownerRights);
+    // A site editor may edit anything and publish and delete nothing.
     expect(await forViewer(siteEditor, ids.published)).toEqual({
       signedIn: true,
       edit: true,
+      publish: false,
       delete: false,
     });
     expect(await forViewer(stranger, ids.published)).toEqual({
       signedIn: true,
       edit: false,
+      publish: false,
       delete: false,
     });
     expect(await forViewer(null, ids.published)).toEqual({
       signedIn: false,
       edit: false,
+      publish: false,
       delete: false,
     });
     // A draft is seen by those who may edit it only.
@@ -289,6 +289,7 @@ describe('the rights a list gives each transcript', () => {
     expect(await forViewer(collaborator, ids.draft)).toEqual({
       signedIn: true,
       edit: true,
+      publish: false,
       delete: false,
     });
   });
@@ -376,8 +377,27 @@ describe('deleting a transcript', () => {
     expect(said).toContain(SECRET);
   });
 
+  it('is refused, in words, for a transcript that has a version', async () => {
+    const refused = await run(workbenchActions.delete, owner, {
+      id: ids.published,
+      fields: { stay: '1' },
+    });
+    expect(refused).toMatchObject({
+      status: 409,
+      data: { error: recordActions.transcription.hasVersion },
+    });
+    expect(
+      await db.select().from(transcriptions).where(eq(transcriptions.id, ids.published)),
+    ).toHaveLength(1);
+  });
+
   it('from the workbench leads to the witness’s page', async () => {
-    const outcome = await run(workbenchActions.delete, owner, { id: ids.published, fields: {} });
+    const { id } = await createTranscription(
+      db,
+      { witnessId: ids.witness, name: `Gone ${tag}` },
+      owner.id,
+    );
+    const outcome = await run(workbenchActions.delete, owner, { id, fields: {} });
     expect(outcome).toEqual({ status: 303, location: `/witnesses/${witnessSlug}` });
   });
 });

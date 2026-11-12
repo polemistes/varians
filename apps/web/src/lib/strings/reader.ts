@@ -12,26 +12,20 @@ export const reader = {
   version: (n: number) => `Version ${n}`,
   published: 'published',
   draft: 'Draft',
-  draftVersion: (version: number) => `Draft, version ${version}`,
-  previewVersion: (version: number) => `Preview of the draft, version ${version}`,
-  unnumbered: 'Published',
+  /** The draft of an edition that has a version, as its editors preview it. */
+  preview: 'Preview of the draft',
 
   notices: {
     draftTitle: 'Draft',
-    draftText: 'This edition is not published. Only its editors can see it.',
+    draftText: 'The edition has no version yet. Only its editors see the draft.',
     previewTitle: 'Preview of the Draft',
-    /** The same words as the notice's title, as the reader bar says what is being read: a status, not a heading. */
-    previewLabel: 'Preview of the draft',
-    previewText: 'This is the current draft, as readers will see it once it is published.',
-    previewReaders: (n: number) => `Readers now see version ${n}.`,
+    previewText: 'This is the draft, which only the editors see.',
+    previewReaders: (n: number) => `Readers see version ${n}.`,
     showPublished: 'Show the published version',
-    versionTitle: (n: number) => `Version ${n}, published`,
-    versionText: 'You are reading the edition as it was published then.',
-    versionIsCurrent: 'This is the current version.',
-    readCurrent: 'Read the current version',
+    versionText: 'You are reading the edition as this version was published.',
+    versionIsCurrent: 'This is the latest version.',
+    readCurrent: 'Read the latest version',
     segmentMissing: (label: string) => `This edition has no segment ${label}.`,
-    withdrawnTitle: (n: number) => `Version ${n}, withdrawn`,
-    withdrawnOn: (date: string) => `Withdrawn on ${date}.`,
   },
 
   /** The toolbar. */
@@ -41,7 +35,6 @@ export const reader = {
     facsimile: 'Facsimile',
     variants: 'Variants',
     dictionary: 'Dictionary',
-    versions: 'Versions',
     search: 'Search the text',
     searchPlaceholder: 'Search',
     searchNext: 'Next Match',
@@ -52,9 +45,6 @@ export const reader = {
   },
 
   menu: {
-    versions: 'Published Versions',
-    noVersions: 'Not Published Yet',
-    current: 'current',
     preview: 'Preview the Draft',
     published: 'Show the Published Version',
   },
@@ -237,8 +227,7 @@ export const reader = {
     copiedDraft: 'a draft',
     editedBy: (names: string) => `edited by ${names}`,
     downloads: 'Download',
-    versions: 'Published Versions',
-    current: 'current',
+    versions: 'Versions',
   },
 
   /** The plain-text export. */

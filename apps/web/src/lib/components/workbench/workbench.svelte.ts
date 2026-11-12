@@ -105,10 +105,6 @@ export interface WorkbenchInput {
     keepsWrittenForm: boolean;
     displayAsWritten: boolean;
     memory: MemoryEntry[];
-    /** The number of the latest version that is not withdrawn; null while there is none. */
-    latestVersion: number | null;
-    /** The number of the version shown, read only; null for the draft. */
-    shownVersion?: number | null;
     sources: string | null;
     rightsNote: string | null;
     licence?: string | null;
@@ -171,8 +167,6 @@ export class Workbench {
   readonly canDelete: boolean;
   readonly canMaintainWitness: boolean;
   readonly maxUploadBytes: number;
-  readonly latestVersion: number | null;
-  readonly shownVersion: number | null;
 
   // What the server knows
   name = $state('');
@@ -277,8 +271,6 @@ export class Workbench {
     this.canDelete = input.canDelete;
     this.canMaintainWitness = input.canMaintainWitness;
     this.maxUploadBytes = input.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
-    this.latestVersion = input.transcription.latestVersion;
-    this.shownVersion = input.transcription.shownVersion ?? null;
     this.sources = input.transcription.sources;
     this.rightsNote = input.transcription.rightsNote;
     this.licence = input.transcription.licence ?? null;

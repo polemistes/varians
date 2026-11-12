@@ -5,7 +5,8 @@
   } from '$lib/components/edition/EditionWorkspace.svelte';
   import EditionActions from '$lib/components/edition/EditionActions.svelte';
   import SiglaDialog from '$lib/components/edition/SiglaDialog.svelte';
-  import { Badge, Notice, toasts } from '$lib/components/ui';
+  import { Notice, toasts } from '$lib/components/ui';
+  import VersionBadge from '$lib/components/version/VersionBadge.svelte';
   import { editor as s } from '$lib/strings/editor';
   import { registry } from '$lib/strings/registry';
   import { page } from '$app/state';
@@ -38,11 +39,7 @@
 
 <div class="flex items-center gap-3 border-b border-line bg-surface px-4 py-2 font-sans text-sm">
   <h1 class="min-w-0 truncate font-serif text-lg text-ink">{data.edition.title}</h1>
-  <Badge tone={data.edition.latestVersion !== null ? 'success' : 'neutral'}
-    >{data.edition.latestVersion !== null
-      ? `v${data.edition.latestVersion}`
-      : s.dialogs.draft}</Badge
-  >
+  <VersionBadge latestVersion={data.edition.latestVersion} />
   <span class={['text-xs', status.error ? 'text-danger' : 'text-ink-muted']} aria-live="polite"
     >{statusText}</span
   >

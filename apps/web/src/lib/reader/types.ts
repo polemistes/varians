@@ -116,6 +116,8 @@ export interface WithdrawnVersionData {
   at: string;
   note: string | null;
   withdrawn: { at: string; note: string | null };
+  /** The licence the version was published under, by name, for its citation. */
+  licence: string | null;
   /** The edition's address, which shows its latest version, or null when it has none any more. */
   current: string | null;
   versions: ReaderVersion[];

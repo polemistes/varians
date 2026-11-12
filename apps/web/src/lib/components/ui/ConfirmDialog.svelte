@@ -1,8 +1,9 @@
 <script lang="ts">
   /**
-   * The one window that asks before anything is deleted, removed, published
-   * or taken back. Its title is the action's name, its body says what goes
-   * with it, its buttons are the verb and Cancel. The deed is a form action
+   * The window that asks before anything is deleted, removed or revoked
+   * (publishing and withdrawing a version have windows of their own, in
+   * components/version). Its title is the action's name, its body says what
+   * goes with it, its buttons are the verb and Cancel. The deed is a form action
    * (`action`, with hidden `fields`), or a function (`onconfirm`) that
    * returns a refusal to show, if any.
    */
@@ -18,9 +19,9 @@
     open?: boolean;
     title: string;
     description: string;
-    /** The verb: Delete, Remove, Publish, Unpublish. */
+    /** The verb: Delete, Remove, Revoke. */
     confirmLabel: string;
-    /** Danger for what cannot be undone; primary for publishing. */
+    /** Danger for what cannot be undone; primary otherwise. */
     tone?: 'danger' | 'primary';
     /** The form action that does the deed, such as ?/deleteConjecture; or else `onconfirm`. */
     action?: string;

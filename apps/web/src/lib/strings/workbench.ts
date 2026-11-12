@@ -11,8 +11,6 @@ export const workbench = {
   backToWitness: (witness: string) => `Back to ${witness}`,
   readOnly: 'Read Only',
   readOnlyHint: 'You can read this transcript but not change it.',
-  draft: 'Draft',
-  published: 'Published',
 
   form: {
     label: 'Form Shown',

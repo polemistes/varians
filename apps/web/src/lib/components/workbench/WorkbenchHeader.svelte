@@ -3,18 +3,24 @@
    * The workbench's header: the witness and the transcript, and at the right
    * the view controls (the side the facsimile stands on, the side pane's
    * toggle) and the transcript's menu, the same as in every list the
-   * transcript stands in. What is done to the text and not to the record is
-   * in the Tools menu above the text. The page chooser is in the bar above
-   * the text.
+   * transcript stands in. Beside the name, which state is shown: Draft, or
+   * the version read only with its date, and the Versions menu with, for
+   * those who may edit, the way back to the draft. What is done to the text
+   * and not to the record is in the Tools menu above the text. The page
+   * chooser is in the bar above the text.
    */
   import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import PanelRightClose from '@lucide/svelte/icons/panel-right-close';
   import PanelRightOpen from '@lucide/svelte/icons/panel-right-open';
+  import Pencil from '@lucide/svelte/icons/pencil';
   import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
-  import { Badge, IconButton } from '$lib/components/ui';
+  import { Badge, IconButton, LocalDate, MenuItem } from '$lib/components/ui';
+  import VersionsMenu from '$lib/components/version/VersionsMenu.svelte';
+  import type { ReaderVersion } from '$lib/reader/types';
   import type { TranscriptionRights } from '$lib/transcription/actions';
+  import { versions as v } from '$lib/strings/versions';
   import { workbench as t } from '$lib/strings/workbench';
   import type { Workbench } from './workbench.svelte';
 
@@ -29,11 +35,41 @@
     /** The side pane stands left of the text. */
     paneLeft: boolean;
     onpaneleft: (left: boolean) => void;
+    /** The versions, newest first, as the page's data has them now. */
+    versions: ReaderVersion[];
+    latestVersion: number | null;
+    /** The version shown read only, with its date and note; null for the draft. */
+    shownVersion: number | null;
+    shown: { at: string; note: string | null } | null;
+    /** The viewer may edit the draft: a version shown leads back to it. */
+    canEditDraft: boolean;
   }
 
-  let { wb, rights, paneOpen, ontogglepane, onsettings, oncopy, paneLeft, onpaneleft }: Props =
-    $props();
+  let {
+    wb,
+    rights,
+    paneOpen,
+    ontogglepane,
+    onsettings,
+    oncopy,
+    paneLeft,
+    onpaneleft,
+    versions,
+    latestVersion,
+    shownVersion,
+    shown,
+    canEditDraft,
+  }: Props = $props();
+
+  const draftHref = $derived(`/transcriptions/${encodeURIComponent(wb.id)}`);
 </script>
+
+{#snippet draftItem()}
+  <MenuItem href={draftHref}>
+    {#snippet icon()}<Pencil aria-hidden="true" />{/snippet}
+    {v.menu.showDraft}
+  </MenuItem>
+{/snippet}
 
 <div
   class="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-1.5 font-sans text-sm"
@@ -50,8 +86,19 @@
     </a>
     <span class="text-ink-muted" aria-hidden="true">·</span>
     <h1 class="truncate font-medium text-ink">{wb.name}</h1>
-    {#if wb.latestVersion === null}<Badge>{t.draft}</Badge>{/if}
+    {#if shownVersion === null}
+      <Badge>{v.draft}</Badge>
+    {:else if shown}
+      <span class="text-xs whitespace-nowrap text-ink-soft" title={shown.note ?? undefined}
+        >{v.published(shownVersion)} <LocalDate date={shown.at} /></span
+      >
+    {/if}
     {#if !wb.canEdit}<Badge tone="accent">{t.readOnly}</Badge>{/if}
+    {#if shownVersion !== null && canEditDraft}
+      <a href={draftHref} class="text-xs whitespace-nowrap text-accent hover:underline"
+        >{v.menu.showDraft}</a
+      >
+    {/if}
   </div>
 
   <div class="ml-auto flex flex-wrap items-center gap-3">
@@ -80,10 +127,15 @@
           />{/if}
       </IconButton>
     </div>
+    <VersionsMenu
+      {versions}
+      after={shownVersion !== null && canEditDraft ? draftItem : undefined}
+    />
     <TranscriptionActions
-      transcription={{ id: wb.id, name: wb.name }}
+      transcription={{ id: wb.id, name: wb.name, latestVersion }}
       {rights}
       place="workbench"
+      flush={() => wb.flush()}
       {onsettings}
       {oncopy}
       ondeletestart={() => wb.stop()}

@@ -354,7 +354,7 @@ describe('small helpers', () => {
       { slug: 'a', title: 'Iliad 1' },
       { slug: 'b', title: 'Iliad 2' },
     ];
-    const none = { hiddenEditions: 0 };
+    const none = { hiddenEditions: 0, versioned: 0 };
     expect(
       describeDependents({ editions, ...none, transcriptions: 2, records: 1 }, 'conjectures'),
     ).toBe('the editions Iliad 1 and Iliad 2, 2 transcripts and a conjecture or reported reading');
@@ -367,31 +367,37 @@ describe('small helpers', () => {
     expect(
       describeDependents({ editions: [], ...none, transcriptions: 1, records: 0 }, 'readings'),
     ).toBe('a transcript');
+    expect(
+      describeDependents(
+        { editions: [], ...none, transcriptions: 1, versioned: 2, records: 0 },
+        'readings',
+      ),
+    ).toBe('a transcript and 2 records of yours that have versions');
   });
 
   it('counts the editions one may not see and names nothing of them', () => {
     const named = [{ slug: 'a', title: 'Iliad 1' }];
     expect(
       describeDependents(
-        { editions: named, hiddenEditions: 2, transcriptions: 0, records: 0 },
+        { editions: named, hiddenEditions: 2, transcriptions: 0, records: 0, versioned: 0 },
         'readings',
       ),
     ).toBe('the edition Iliad 1 and 2 other editions that are not published');
     expect(
       describeDependents(
-        { editions: named, hiddenEditions: 1, transcriptions: 0, records: 0 },
+        { editions: named, hiddenEditions: 1, transcriptions: 0, records: 0, versioned: 0 },
         'readings',
       ),
     ).toBe('the edition Iliad 1 and another edition that is not published');
     expect(
       describeDependents(
-        { editions: [], hiddenEditions: 2, transcriptions: 1, records: 0 },
+        { editions: [], hiddenEditions: 2, transcriptions: 1, records: 0, versioned: 0 },
         'readings',
       ),
     ).toBe('2 editions that are not published and a transcript');
     expect(
       describeDependents(
-        { editions: [], hiddenEditions: 1, transcriptions: 0, records: 0 },
+        { editions: [], hiddenEditions: 1, transcriptions: 0, records: 0, versioned: 0 },
         'readings',
       ),
     ).toBe('an edition that is not published');

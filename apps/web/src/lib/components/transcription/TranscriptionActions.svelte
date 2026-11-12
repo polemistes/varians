@@ -2,13 +2,16 @@
   /**
    * A transcript's menu, the same wherever it stands: in the workbench's
    * header, in the rows of a witness's page and a work's page, on Your Work
-   * and on the front page's Continue. Deleting asks in the application's
-   * window. Settings and the copy are windows of the workbench: there they
-   * open at once, and from a list the item leads to the workbench with the
-   * window open.
+   * and on the front page's Continue. Publish… and Withdraw Version… open
+   * their windows wherever the menu stands, and deleting asks in the
+   * application's window. Settings and the copy are windows of the
+   * workbench: there they open at once, and from a list the item leads to
+   * the workbench with the window open.
    */
   import { goto } from '$app/navigation';
   import { ConfirmDialog, RecordActions } from '$lib/components/ui';
+  import PublishDialog from '$lib/components/version/PublishDialog.svelte';
+  import WithdrawDialog from '$lib/components/version/WithdrawDialog.svelte';
   import { recordActions } from '$lib/strings/record-actions';
   import {
     transcriptionActions,
@@ -17,9 +20,11 @@
   } from '$lib/transcription/actions';
 
   interface Props {
-    transcription: { id: string; name: string };
+    transcription: { id: string; name: string; latestVersion: number | null };
     rights: TranscriptionRights;
     place: TranscriptionPlace;
+    /** In the workbench: saves what is pending before publishing. */
+    flush?: () => Promise<void>;
     /** In the workbench: open the settings window. */
     onsettings?: () => void;
     /** In the workbench: open the window for making a copy. */
@@ -35,6 +40,7 @@
     transcription,
     rights,
     place,
+    flush,
     onsettings,
     oncopy,
     ondeletestart,
@@ -47,6 +53,8 @@
   const id = $derived(encodeURIComponent(transcription.id));
 
   let deleteOpen = $state(false);
+  let publishOpen = $state(false);
+  let withdrawOpen = $state(false);
   let refused = $state(false);
 
   // A page that stopped as the deletion began goes on once the refusal has been read.
@@ -59,6 +67,8 @@
 
   function act(action: string) {
     if (action === 'delete') deleteOpen = true;
+    else if (action === 'publish') publishOpen = true;
+    else if (action === 'withdraw') withdrawOpen = true;
     else if (action === 'settings') {
       if (place === 'workbench') onsettings?.();
       else void goto(`/transcriptions/${id}?settings=1`);
@@ -75,6 +85,11 @@
   onaction={act}
   class={className}
 />
+
+{#if rights.publish}
+  <PublishDialog bind:open={publishOpen} kind="transcription" id={transcription.id} {flush} />
+  <WithdrawDialog bind:open={withdrawOpen} kind="transcription" id={transcription.id} />
+{/if}
 
 {#if rights.delete}
   <ConfirmDialog

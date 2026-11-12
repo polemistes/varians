@@ -1,6 +1,6 @@
 <script lang="ts">
   import TranscriptionActions from '$lib/components/transcription/TranscriptionActions.svelte';
-  import { Badge } from '$lib/components/ui';
+  import VersionBadge from '$lib/components/version/VersionBadge.svelte';
   import type { WorkTranscriptionRow } from '$lib/registry/types';
   import { registry } from '$lib/strings/registry';
   import type { TranscriptionRights } from '$lib/transcription/actions';
@@ -37,7 +37,7 @@
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-4">
-        {#if item.latestVersion === null}<Badge>{registry.common.draft}</Badge>{/if}
+        <VersionBadge latestVersion={item.latestVersion} />
         <CoverageBar n={item.segmentCount} {total} />
       </div>
       <!-- A row without a menu keeps its room, so that the coverage of every row stands in line. -->

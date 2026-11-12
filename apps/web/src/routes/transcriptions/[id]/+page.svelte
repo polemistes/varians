@@ -318,7 +318,17 @@
 <div class="workbench flex h-[calc(100dvh-3.5rem-1px)] min-h-[28rem] flex-col">
   <WorkbenchHeader
     {wb}
-    rights={{ signedIn: !!data.user, edit: wb.canEdit, delete: wb.canDelete }}
+    rights={{
+      signedIn: !!data.user,
+      edit: wb.canEdit,
+      publish: data.canPublish,
+      delete: wb.canDelete,
+    }}
+    versions={data.transcription.versions}
+    latestVersion={data.transcription.latestVersion}
+    shownVersion={data.transcription.shownVersion}
+    shown={data.transcription.shown}
+    canEditDraft={data.canEditDraft}
     {paneOpen}
     ontogglepane={() => (paneOpen = !paneOpen)}
     onsettings={() => (settingsOpen = true)}
