@@ -397,30 +397,11 @@ export const transcriptions = pgTable(
   ],
 );
 
-/** Derived from a transcription's content on every save: which segments it has, and the fold text of each run. */
 /**
- * The works a transcription is for, in order: chosen by its owner, so that
- * a transcription without text yet is listed with its works and offered
- * their segment labels. The works its text is actually assigned to are in
- * transcription_segments; a transcription's works are both together.
+ * Derived from a transcription's content on every save: which segments it
+ * has, and the fold text of each run. A transcription's works are those it
+ * names here; it has no others.
  */
-export const transcriptionWorks = pgTable(
-  'transcription_works',
-  {
-    transcriptionId: text()
-      .notNull()
-      .references(() => transcriptions.id, { onDelete: 'cascade' }),
-    workId: text()
-      .notNull()
-      .references(() => works.id, { onDelete: 'cascade' }),
-    position: integer().notNull().default(0),
-  },
-  (t) => [
-    primaryKey({ columns: [t.transcriptionId, t.workId] }),
-    index('transcription_works_work_idx').on(t.workId),
-  ],
-);
-
 export const transcriptionSegments = pgTable(
   'transcription_segments',
   {
@@ -1111,15 +1092,6 @@ export const transcriptionsRelations = relations(transcriptions, ({ one, many })
   owner: one(users, { fields: [transcriptions.ownerId], references: [users.id] }),
   zones: many(zones),
   segments: many(transcriptionSegments),
-  works: many(transcriptionWorks),
-}));
-
-export const transcriptionWorksRelations = relations(transcriptionWorks, ({ one }) => ({
-  transcription: one(transcriptions, {
-    fields: [transcriptionWorks.transcriptionId],
-    references: [transcriptions.id],
-  }),
-  work: one(works, { fields: [transcriptionWorks.workId], references: [works.id] }),
 }));
 
 export const transcriptionSegmentsRelations = relations(transcriptionSegments, ({ one }) => ({

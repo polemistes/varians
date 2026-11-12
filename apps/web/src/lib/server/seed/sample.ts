@@ -42,7 +42,6 @@ import { setReviewFrom } from '../history.ts';
 import { addNote } from '../notes.ts';
 import { createZones } from '../zones.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
-import { setChosenWorks } from '../transcription-works.ts';
 
 export const DEFAULT_CONVENTIONS = {
   apparatus: 'positive' as const,
@@ -180,7 +179,7 @@ export async function seedSample(
   unclear.marks = [{ kind: 'unclear' }];
   const supplied = aRead.items.filter((i) => i.kind === 'token')[1] as Token;
   supplied.marks = [{ kind: 'supplied', attrs: { reason: 'lost' } }];
-  const aTranscription = await transcription(db, aId, ownerId, 'Iliad 1', aRead, true, workId);
+  const aTranscription = await transcription(db, aId, ownerId, 'Iliad 1', aRead, true);
 
   // Witness B: substitutions, a transposition within a line, a line omitted.
   const bLines = { ...ILIAD };
@@ -205,7 +204,6 @@ export async function seedSample(
     'Iliad 1',
     linesToStream(bLines, segmentIdOf),
     false,
-    workId,
   );
 
   // Witness C: without lines 3 and 6, a gap inside line 5, one substitution.
@@ -235,7 +233,7 @@ export async function seedSample(
       type: 'gap',
       attrs: { reason: 'lost', quantity: 6, unit: 'character' },
     });
-  const cTranscription = await transcription(db, cId, ownerId, 'Iliad 1', cStream, false, workId);
+  const cTranscription = await transcription(db, cId, ownerId, 'Iliad 1', cStream, false);
 
   // The edition, based on A.
   const editionId = newId();
@@ -421,13 +419,11 @@ async function transcription(
   name: string,
   content: Stream,
   keepsWrittenForm: boolean,
-  workId: string | null = null,
 ): Promise<string> {
   const id = newId();
   await db
     .insert(transcriptions)
     .values({ id, witnessId, name, ownerId, keepsWrittenForm, visibility: 'published' });
-  if (workId) await setChosenWorks(db, id, [workId]);
   await replaceContent(db, 'transcription', id, ownerId, 0, content, 'seed');
   return id;
 }

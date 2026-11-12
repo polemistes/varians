@@ -33,7 +33,6 @@ import { undoChangeset } from './history.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { CopyRefused, copyText, previewCopy } from './text-copy.ts';
-import { setChosenWorks } from './transcription-works.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -101,7 +100,6 @@ async function transcription(
     keepsWrittenForm: false,
     visibility: options.visibility ?? 'published',
   });
-  await setChosenWorks(db, id, [workId]);
   await replaceContent(db, 'transcription', id, options.owner ?? userId, 0, content, 'seed');
   transcriptionOf[siglum] = id;
   return witnessId;

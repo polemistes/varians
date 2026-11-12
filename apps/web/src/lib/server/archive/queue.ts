@@ -16,7 +16,6 @@ import {
   notes,
   reportedReadings,
   transcriptionSegments,
-  transcriptionWorks,
   transcriptions,
   works,
   type Database,
@@ -52,7 +51,7 @@ async function requeue(db: Database, entries: QueueEntry[]): Promise<void> {
     });
 }
 
-/** The works whose archive holds a transcription: chosen for, assigned to, or named by a conspectus of an edition of. */
+/** The works whose archive holds a transcription: those its text is assigned to, and those whose editions name it in a conspectus. */
 async function worksOfTranscriptions(
   db: Database,
   ids: string[],
@@ -64,11 +63,6 @@ async function worksOfTranscriptions(
     .selectDistinct({ t: transcriptionSegments.transcriptionId, w: transcriptionSegments.workId })
     .from(transcriptionSegments)
     .where(inArray(transcriptionSegments.transcriptionId, ids)))
-    add(r.t, r.w);
-  for (const r of await db
-    .select({ t: transcriptionWorks.transcriptionId, w: transcriptionWorks.workId })
-    .from(transcriptionWorks)
-    .where(inArray(transcriptionWorks.transcriptionId, ids)))
     add(r.t, r.w);
   for (const r of await db
     .select({ t: editionSigla.transcriptionId, w: editions.workId })

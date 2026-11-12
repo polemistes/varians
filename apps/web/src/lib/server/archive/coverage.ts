@@ -15,7 +15,6 @@ export const ARCHIVED_TABLES = [
   'bibliography_items',
   'citations',
   'transcriptions',
-  'transcription_works',
   'zones',
   'conjectures',
   'reported_readings',

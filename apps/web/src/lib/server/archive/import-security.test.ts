@@ -15,6 +15,7 @@ import {
   pages,
   referenceSchemes,
   reportedReadings,
+  transcriptions,
   users,
   witnesses,
   works,
@@ -27,6 +28,8 @@ import path from 'node:path';
 import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
 import { publishEdition } from '../publish.ts';
+import { createTranscription } from '../registry.ts';
+import { worksOfTranscription } from '../transcription-works.ts';
 import { folderName, writeArchive } from './archive.ts';
 import { importArchive, removeWorkCompletely } from './import.ts';
 
@@ -229,5 +232,36 @@ describe('a crafted archive', () => {
     expect((await db.select().from(conjectures).where(inArray(conjectures.id, ids))).length).toBe(
       ids.length,
     );
+  }, 120_000);
+
+  it('reads the works that an archive still gives a transcription without them, and holds no transcription with no text of the work', async () => {
+    await clean();
+    const sample = await seedSample(db, owner);
+    // A transcript of a witness of the work with nothing assigned to it is no transcript of the work.
+    const empty = await createTranscription(
+      db,
+      { witnessId: sample.witnessIds.A!, name: 'Nothing assigned' },
+      owner,
+    );
+    const dir = await writeArchive(db, sample.workId, path.join(tmp, newId()));
+    const files: string[] = [];
+    for (const witness of await readdir(path.join(dir, 'witnesses')))
+      for (const t of await readdir(path.join(dir, 'witnesses', witness, 'transcriptions')).catch(
+        () => [],
+      ))
+        files.push(path.join(dir, 'witnesses', witness, 'transcriptions', t, 'transcription.json'));
+    expect(files.length).toBeGreaterThan(0);
+    const written = await Promise.all(files.map((f) => json(f)));
+    expect(written.map((t) => t.id)).not.toContain(empty.id);
+    await db.delete(transcriptions).where(eq(transcriptions.id, empty.id));
+    // The format no longer has the member; an archive written before it went has it.
+    for (const [i, file] of files.entries()) {
+      expect(written[i]).not.toHaveProperty('workIds');
+      await writeFile(file, JSON.stringify({ ...written[i], workIds: [sample.workId, newId()] }));
+    }
+    await removeWorkCompletely(db, sample.workId);
+    await importArchive(db, dir, owner);
+    for (const t of written)
+      expect(await worksOfTranscription(db, t.id as string)).toEqual([sample.workId]);
   }, 120_000);
 });

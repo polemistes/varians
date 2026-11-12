@@ -19,7 +19,6 @@ import {
   editionSigla,
   editions,
   transcriptionSegments,
-  transcriptionWorks,
   transcriptions,
   users,
   workRemotes,
@@ -79,18 +78,13 @@ async function headAt(
   return row?.id ?? null;
 }
 
-/** The transcriptions in a work's archive: chosen for it, assigning text to it, or named by a conspectus of one of its editions. */
+/** The transcriptions in a work's archive: assigning text to it, or named by a conspectus of one of its editions. */
 async function connectedTranscriptions(db: Database, workId: string) {
   const ids = new Set<string>();
   for (const r of await db
     .selectDistinct({ id: transcriptionSegments.transcriptionId })
     .from(transcriptionSegments)
     .where(eq(transcriptionSegments.workId, workId)))
-    ids.add(r.id);
-  for (const r of await db
-    .select({ id: transcriptionWorks.transcriptionId })
-    .from(transcriptionWorks)
-    .where(eq(transcriptionWorks.workId, workId)))
     ids.add(r.id);
   for (const r of await db
     .select({ id: editionSigla.transcriptionId })

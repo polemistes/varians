@@ -50,7 +50,6 @@ import { loadReader, readerSites } from './reader-pages.ts';
 import { editionOutline, editionView, refreshView } from './reader.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
-import { setChosenWorks } from './transcription-works.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -111,7 +110,6 @@ async function transcription(siglum: string, content: Stream): Promise<string> {
     keepsWrittenForm: false,
     visibility: 'published',
   });
-  await setChosenWorks(db, id, [workId]);
   await replaceContent(db, 'transcription', id, userId, 0, content, 'seed');
   transcriptionOf[siglum] = id;
   return witnessId;

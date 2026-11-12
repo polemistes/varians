@@ -52,7 +52,6 @@ import {
   reviewState,
   segments,
   transcriptionSegments,
-  transcriptionWorks,
   transcriptions,
   users,
   witnessMaintainers,
@@ -96,7 +95,6 @@ import {
 } from '../reader.ts';
 import { basisForArchive } from '../site-marks.ts';
 import { labelOfSegments, siglaOrderOf } from '../../reader/sites.ts';
-import { chosenWorksOf } from '../transcription-works.ts';
 import { safeJoin } from '../images/safe-join.ts';
 import { dataLicence, siteName } from '../settings.ts';
 import type { Contributor } from '@varians/core';
@@ -360,18 +358,13 @@ async function loadWorkContext(
           ),
         )
     : [];
-  // Transcriptions connected to the work: chosen for it, assigning text to it, or named by a conspectus.
+  // Transcriptions connected to the work: assigning text to it, or named by a conspectus.
   const assigning = await db
     .selectDistinct({ transcriptionId: transcriptionSegments.transcriptionId })
     .from(transcriptionSegments)
     .where(eq(transcriptionSegments.workId, workId));
-  const chosen = await db
-    .select({ transcriptionId: transcriptionWorks.transcriptionId })
-    .from(transcriptionWorks)
-    .where(eq(transcriptionWorks.workId, workId));
   const transcriptionIds = new Set<string>([
     ...assigning.map((a) => a.transcriptionId),
-    ...chosen.map((a) => a.transcriptionId),
     ...siglaRows.map((s) => s.transcriptionId).filter((id): id is string => id !== null),
   ]);
   const transcriptionRows = (
@@ -955,7 +948,6 @@ async function writeTranscriptionFiles(ctx: WorkContext, current: TranscriptionR
   const witness = ctx.witnessRows.find((w) => w.id === t.witnessId)!;
   const tdir = path.join(ctx.dir, ctx.transcriptionPath.get(t.id)!);
   await rm(tdir, { recursive: true, force: true });
-  const chosen = await chosenWorksOf(db, [t.id]);
   await writeJson(
     path.join(tdir, 'transcription.json'),
     record('transcription', {
@@ -974,7 +966,6 @@ async function writeTranscriptionFiles(ctx: WorkContext, current: TranscriptionR
       sources: t.sources,
       licence: t.licenceId,
       rightsNote: t.rightsNote,
-      workIds: chosen.get(t.id) ?? [],
       createdAt: iso(t.createdAt),
       content: t.content,
     }),

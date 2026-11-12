@@ -76,7 +76,6 @@ import { setReviewFrom } from '../history.ts';
 import { addNote } from '../notes.ts';
 import { publishEdition } from '../publish.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
-import { setChosenWorks } from '../transcription-works.ts';
 import { DEFAULT_CONVENTIONS } from './sample.ts';
 import {
   generateStress,
@@ -564,12 +563,6 @@ async function makeTranscripts(s: Seeding, longHistory: number): Promise<string[
       keepsWrittenForm: w.keepsWrittenForm,
       visibility: 'draft',
     });
-    const scholia = w.entries.some((e) => e.kind === 'line' && e.work === 'scholia');
-    await setChosenWorks(
-      db,
-      id,
-      s.scholiaWorkId && scholia ? [s.workId, s.scholiaWorkId] : [s.workId],
-    );
     const plan = streamOf(
       w,
       (work, n) => (work === 'main' ? s.segmentOf.get(n)! : s.scholiaSegmentOf.get(n)!),

@@ -3,40 +3,10 @@
  * transcription of a miscellany may have many.
  */
 import { segmentIds, type Stream } from '@varians/core';
-import { segments, transcriptions, transcriptionWorks, type Database } from '@varians/db';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { segments, transcriptions, type Database } from '@varians/db';
+import { eq, inArray } from 'drizzle-orm';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
-
-/** The works a transcription is for, in the order its owner gave them. */
-export async function chosenWorks(db: Database | Tx, transcriptionId: string): Promise<string[]> {
-  const rows = await db
-    .select({ workId: transcriptionWorks.workId })
-    .from(transcriptionWorks)
-    .where(eq(transcriptionWorks.transcriptionId, transcriptionId))
-    .orderBy(asc(transcriptionWorks.position));
-  return rows.map((r) => r.workId);
-}
-
-/** The chosen works of several transcriptions at once. */
-export async function chosenWorksOf(
-  db: Database | Tx,
-  transcriptionIds: string[],
-): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>();
-  if (transcriptionIds.length === 0) return out;
-  const rows = await db
-    .select({
-      transcriptionId: transcriptionWorks.transcriptionId,
-      workId: transcriptionWorks.workId,
-    })
-    .from(transcriptionWorks)
-    .where(inArray(transcriptionWorks.transcriptionId, transcriptionIds))
-    .orderBy(asc(transcriptionWorks.position));
-  for (const row of rows)
-    out.set(row.transcriptionId, [...(out.get(row.transcriptionId) ?? []), row.workId]);
-  return out;
-}
 
 /**
  * The works a transcription's text is assigned to, in the order they first
@@ -65,20 +35,4 @@ export async function worksOfContent(db: Database | Tx, content: Stream): Promis
   return [
     ...new Set(named.map((id) => workOf.get(id)).filter((w): w is string => w !== undefined)),
   ];
-}
-
-/** Set the works a transcription is for, in order; duplicates are dropped. */
-export async function setChosenWorks(
-  db: Database | Tx,
-  transcriptionId: string,
-  workIds: string[],
-): Promise<void> {
-  const ids = [...new Set(workIds)];
-  await db
-    .delete(transcriptionWorks)
-    .where(eq(transcriptionWorks.transcriptionId, transcriptionId));
-  if (ids.length)
-    await db
-      .insert(transcriptionWorks)
-      .values(ids.map((workId, position) => ({ transcriptionId, workId, position })));
 }

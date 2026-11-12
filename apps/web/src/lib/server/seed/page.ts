@@ -69,7 +69,6 @@ import {
 import { replaceContent, saveOps } from '../documents/service.ts';
 import { createEdition, setSigla } from '../editions.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
-import { setChosenWorks } from '../transcription-works.ts';
 import { DEFAULT_CONVENTIONS } from './sample.ts';
 import { refuseDevelopmentDatabase } from './stress.ts';
 
@@ -1059,7 +1058,6 @@ async function makeTranscripts(s: Seeding): Promise<void> {
       ownerId,
       visibility: 'draft',
     });
-    await setChosenWorks(db, id, [s.workId]);
     await replaceContent(db, 'transcription', id, ownerId, 0, { items }, PAGE_REASON);
     count(s, 'transcripts');
     count(s, 'words in transcripts', items.filter((i) => i.kind === 'token').length);

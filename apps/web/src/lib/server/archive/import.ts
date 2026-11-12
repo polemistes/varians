@@ -57,7 +57,7 @@ import {
   reportedReadings,
   reviewState,
   segments,
-  transcriptionWorks,
+  transcriptionSegments,
   transcriptions,
   users,
   witnessMaintainers,
@@ -77,7 +77,6 @@ import { citationsOfWork } from './archive.ts';
 import { nameMoment, rebuildSegmentIndex, replaceContent } from '../documents/service.ts';
 import { conformStored } from '../conform.ts';
 import { pageStrings } from '../../strings/pages.ts';
-import { setChosenWorks } from '../transcription-works.ts';
 import {
   canEditEdition,
   canEditTranscription,
@@ -1034,8 +1033,6 @@ async function importInto(
         displayAsWritten: boolean;
         profile: Partial<NormalizationProfile> | null;
         description: string | null;
-        /** The works it is for; absent in archives written before transcriptions had several. */
-        workIds?: string[];
         sources?: string | null;
         /** An SPDX identifier since format 2; free text before. */
         licence?: string | null;
@@ -1083,20 +1080,6 @@ async function importInto(
       if (!applies(outcome)) continue;
       // Its page breaks name pages of the witness here, once each, in their order.
       await conformStored(db, t.id, ctx.userId, pageStrings.history.reorganized);
-      // Its works, as far as this installation knows them.
-      const named = t.workIds ?? [];
-      const knownWorks = named.length
-        ? new Set(
-            (await db.select({ id: works.id }).from(works).where(inArray(works.id, named))).map(
-              (x) => x.id,
-            ),
-          )
-        : new Set<string>();
-      await setChosenWorks(
-        db,
-        t.id,
-        named.filter((x) => knownWorks.has(x)),
-      );
       const zoneList =
         (await reader.list<{
           id: string;
@@ -1910,14 +1893,14 @@ export async function removeWorkCompletely(db: Database, workId: string): Promis
   const siglaRows = editionIds.length
     ? await db.select().from(editionSigla).where(inArray(editionSigla.editionId, editionIds))
     : [];
-  const chosen = await db
-    .select({ id: transcriptionWorks.transcriptionId })
-    .from(transcriptionWorks)
-    .where(eq(transcriptionWorks.workId, workId));
+  const assigning = await db
+    .selectDistinct({ id: transcriptionSegments.transcriptionId })
+    .from(transcriptionSegments)
+    .where(eq(transcriptionSegments.workId, workId));
   const transcriptionIds = [
     ...new Set([
       ...siglaRows.map((s) => s.transcriptionId).filter((id): id is string => id !== null),
-      ...chosen.map((c) => c.id),
+      ...assigning.map((c) => c.id),
     ]),
   ];
   const witnessIds = [...new Set(siglaRows.map((s) => s.witnessId))];
