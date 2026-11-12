@@ -118,6 +118,11 @@ test('a TEI file is taken as a text to start from, or as a transcript of the wit
     await page.getByRole('menuitem', { name: w.tools.import }).click();
     const dialog = page.getByRole('dialog', { name: w.importer.title });
     await dialog.locator('input[name=file][accept*=".tei"]').setInputFiles(file);
+    // The file declares no language: the import waits until one is chosen.
+    await dialog
+      .getByLabel(w.importer.language, { exact: true })
+      .filter({ visible: true })
+      .selectOption('grc');
     return dialog;
   };
 

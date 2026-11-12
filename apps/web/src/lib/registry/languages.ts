@@ -1,6 +1,7 @@
 /**
- * The languages offered when a work is made. Any ISO 639 code is accepted
- * through the free input; these are the common ones, named in the strings.
+ * The languages Varians names, offered wherever a language is given to text
+ * (the editors' Language, the import window). Any other BCP 47 tag is taken
+ * through the field for one's own; these are named in the strings.
  */
 import { registry } from '$lib/strings/registry';
 

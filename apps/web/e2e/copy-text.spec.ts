@@ -27,6 +27,7 @@ import { s } from '../src/lib/strings/en';
 import { replaceContent } from '../src/lib/server/documents/service.ts';
 import { DEFAULT_CONVENTIONS } from '../src/lib/server/seed/sample.ts';
 import { resolveLabels, schemeOfWork } from '../src/lib/server/segments.ts';
+import { typeFirstWords } from './helpers';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
 const stamp = Date.now().toString(36);
@@ -214,7 +215,7 @@ async function signIn(page: Page) {
   await page.waitForURL((url) => !url.pathname.startsWith('/login'));
 }
 
-test('an empty edition without transcripts cannot copy, and is typed into as before', async ({
+test('an empty edition without transcripts cannot copy, and is typed into, its first word asking its language', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -229,18 +230,29 @@ test('an empty edition without transcripts cannot copy, and is typed into as bef
   await expect(page.getByRole('menuitem', { name: t.menu })).toBeDisabled();
   await page.keyboard.press('Escape');
   await page.locator('.cm-content').click();
-  await page.keyboard.type('ὕδωρ ῥέει');
-  await expect(page.locator('[aria-live=polite]').first()).toHaveText('Saved', {
-    timeout: 15_000,
-  });
-  const [row] = await db
-    .select({ content: editions.content })
-    .from(editions)
-    .where(eq(editions.slug, BARE));
-  expect(row!.content.items.flatMap((item) => (item.kind === 'token' ? [item.form] : []))).toEqual([
-    'ὕδωρ',
-    'ῥέει',
-  ]);
+  // An edition starts without a language: the first word typed opens the chooser, and the next takes its language.
+  await typeFirstWords(page, 'ὕδωρ ῥέει', 'Ancient Greek');
+  await expect(page.locator('.cm-content .cm-language-label')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: ed.language.label, exact: true })).toHaveText(
+    'Ancient Greek',
+  );
+  await expect
+    .poll(
+      async () => {
+        const [row] = await db
+          .select({ content: editions.content })
+          .from(editions)
+          .where(eq(editions.slug, BARE));
+        return row!.content.items.flatMap((item) =>
+          item.kind === 'token' ? [[item.form, item.lang]] : [],
+        );
+      },
+      { timeout: 15_000 },
+    )
+    .toEqual([
+      ['ὕδωρ', 'grc'],
+      ['ῥέει', 'grc'],
+    ]);
   await expect(page.getByText(t.empty)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
