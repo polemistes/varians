@@ -42,7 +42,7 @@ Choose **Add New Work** on the **Works** page or on the front page. As you type 
 - A work is always public and can be listed by all users. Look for the work before adding it, so as not to make a duplicate of one already registered.
 - **Reference Scheme**: choose a common one (book and line, chapter and verse, Stephanus page and section) or describe your own levels. An example label shows how passages will be written.
 
-The work's page lists its editions, the witnesses transcribed for it with how much of the work each covers, its conjectures and reported readings, its segments, and its archive. Maintainers change the details, the scheme and the maintainers under **Edit**.
+The work's page lists its editions, the witnesses transcribed for it with how much of the work each covers, its conjectures and reported readings, its segments, and its archive. Maintainers change the details, the scheme and the maintainers under **Edit**. **Make New Transcript…** there finds a witness in the registry and makes a transcript of it, named after the witness; the work's page lists the transcript once text in it is assigned to the work.
 
 ### Merging two works
 
@@ -64,7 +64,7 @@ The **category** says what the carrier is: a manuscript, an inscription, a print
 
 Whether a witness has all of a text or only part of it is a matter of the work, since one codex may hold all of one text and part of another. The work's page shows it for each witness, as complete or partial, from the passages its transcript covers.
 
-The witness's page shows its pages, its transcripts and the works they belong to. **Make New Transcript…** asks for a name, the work it is for, whether to keep a diplomatic form beside the normalized one, and optionally another transcript to start from.
+The witness's page shows its pages, its transcripts and the works they belong to. **Make New Transcript…** names the witness, proposes the name _Transcript of_ the witness, and asks whether to keep a diplomatic form beside the normalized one, and optionally for another transcript to start from. It asks for no work: a transcript is of its witness, and is of a work once its text is assigned to the work's segments.
 
 **Delete Witness…**, in the **⋯** menu beside **Edit** on the witness's page, deletes the witness with its pages, their images and your own transcripts of it. Only the person who registered the witness and administrators may delete it, and it is refused while an edition's conspectus names the witness or while someone else's transcript or reported reading depends on it: the menu item is then greyed, and says what stands in the way.
 
@@ -99,7 +99,7 @@ A page's text belongs to the transcripts, not to the page. Removing a page never
 
 A transcript is a stretch of a witness as you transcribe it: usually one work's text, sometimes a whole manuscript running through several works. You may make as many transcripts of a witness as you like, also of the same work: two readings of a damaged papyrus, or a copy to try something on. An edition always says which transcript stands behind each siglum.
 
-A transcript is **for** one or more works, chosen when you make it and changed under **Settings…**. The first of them gives the defaults: which work's segment labels are offered, and which spelling rules propose normalized forms for text not yet assigned to a work. Text you assign to a work's segments belongs to that work whether it is chosen here or not, and each stretch is read by its own work's spelling rules, so a Greek text and a Latin one in the same manuscript are each treated right. A transcript is listed on the page of every work it is for or has text of.
+A transcript has no works of its own. Its works are those whose segments its text is assigned to: you choose the work when you name a segment, number lines or import, and a transcript is listed on the page of every work it has text of, and on no other. Each stretch is read by its own work's spelling rules, so a Greek text and a Latin one in the same manuscript are each treated right; text not yet assigned is read by the rules of the work you chose last in this visit, else of the first work the text is assigned to, else by the general rules.
 
 A transcript opens in the workbench: the text one page at a time, and beside it the facsimile of that page, the other form of the text, its history, or the pages of the witness. The side pane stands on the right; the first button at the right of the header puts it on the left, and your browser remembers the choice and the pane's width.
 
@@ -115,7 +115,7 @@ The status line at the foot says whether your work is saved, which page is shown
 
 **A text to start from.** Often there is already a text of the work: an earlier edition, a text from the web. It is not a witness and not a source: it saves typing, and once it has been corrected against the witness, the witness is the only source there is. So only its words and their numbering are taken, with its lines and paragraphs. Its editor's brackets and notes, its speakers and headings, and its pages, which are the pages of that edition, are left behind, and nothing is recorded of where it came from. It comes as:
 
-- **TEI**: a file, a web address, or a CTS URN such as `urn:cts:greekLit:tlg0012.tlg001.perseus-grc2:1.1-1.10`. Varians reads the structure it finds (books, lines, chapters) and proposes how its numbering maps onto the work's segments; you can correct the mapping before importing.
+- **TEI**: a file, a web address, or a CTS URN such as `urn:cts:greekLit:tlg0012.tlg001.perseus-grc2:1.1-1.10`. Varians reads the structure it finds (books, lines, chapters) and proposes how its numbering maps onto the segments of the work chosen under **Work**, which is chosen as when naming a segment; you can correct the mapping before importing. **No work** brings the text in without segment labels.
 - **Plain Text**, with the numbering it finds at the starts of lines or in brackets.
 
 **A transcript of this witness**, made by someone who read the witness itself. Here the source matters and can be recorded with the transcript's sources, and the transcript is read with everything it says of the witness. It comes as:
@@ -132,7 +132,7 @@ A transcript holds what its witness has, and nothing an editor added to it. So a
 
 Another transcript can also be the starting point: choose it under **Start from another transcript** when you make a new one, and correct the copy against your witness.
 
-**Make a Copy…** in the **⋯** menu copies the transcript you are looking at, yours or a published one of someone else's: a draft of your own with the text, the works, the settings, the remembered normalized forms and the boxes on the images. Its history starts afresh and says where it came from.
+**Make a Copy…** in the **⋯** menu copies the transcript you are looking at, yours or a published one of someone else's: a draft of your own with the text, and so its works, the settings, the remembered normalized forms and the boxes on the images. Its history starts afresh and says where it came from.
 
 ### Typing
 
@@ -212,7 +212,7 @@ Both mean that the witness is not there at that stretch when the transcript is c
 
 ### Segments
 
-The gutter at the left shows where segments begin: the work's labels, such as 1.5. Click a line's gutter, press Ctrl+Shift+L, or choose **Segment…** in the toolbar under a selection, to set the label of the segment that begins there; the next label is proposed. A segment can begin in the middle of a line, and a text can leave the work for a while: **Unassigned from Here**. **Number Lines from Here…** labels every following line of the page at once, as verse needs.
+The gutter at the left shows where segments begin: the work's labels, such as 1.5. Click a line's gutter, press Ctrl+Shift+L, or choose **Segment…** in the toolbar under a selection, to set the label of the segment that begins there; the next label is proposed. The window asks for the label and the **Work**: the works the transcript's text is already assigned to are offered, in the order they come in the text, with any you chose earlier in this visit. For another work, tick **Choose another work**, search the registry by title or author and click the work; in a transcript with nothing assigned yet the search is open from the start. The work of the segment before is proposed, else the one you chose last. **Set** needs a label and a work. A segment can begin in the middle of a line, and a text can leave the work for a while: **Unassigned from Here**. **Number Lines from Here…** labels every following line of the page at once, as verse needs, and has the same **Work** field.
 
 Segments are independent of pages. A segment runs on wherever its text runs: from one page to the next, or from Staging into a page. Moving text never changes the segment its words belong to, so a text can be segmented while it is all on no page and placed page by page afterwards: a line that ends one page and goes on overleaf is one segment in two parts, which come into their order as the pages fill. Where a page's first line continues the segment of the page before, the gutter shows that segment's label in grey; click it to give the line a segment of its own.
 
@@ -243,7 +243,7 @@ Undo in the text brings back the very words it removed, with their boxes, featur
 
 ### Settings, export and deleting
 
-**Settings…** changes the name, whether the transcript is diplomatic and normalized, the works the transcript is for, and its **Sources** and **Note on Rights**: what it rests on, where that matters, and anything about its rights that the licence does not say, such as the rights in the text it started from. The licence itself is not chosen here: the hint under the note names it, the installation's licence that publishing will give, or the licence it was first published under (see _Licences and rights_). Sources, note and licence go into its TEI export. **Download TEI** gives the transcript as TEI XML with its pages, zones and segment labels. **Download Leiden+** gives it in the notation of papyri.info, its lines numbered and its pages as divisions, with every feature that notation has a way of writing; segments and boxes it has none for, and they are left out. **Delete…** removes it, which is refused while an edition compares it. A published transcript is open to readers at its address, read only.
+**Settings…** changes the name, whether the transcript is diplomatic and normalized, and its **Sources** and **Note on Rights**: what it rests on, where that matters, and anything about its rights that the licence does not say, such as the rights in the text it started from. The licence itself is not chosen here: the hint under the note names it, the installation's licence that publishing will give, or the licence it was first published under (see _Licences and rights_). Sources, note and licence go into its TEI export. **Download TEI** gives the transcript as TEI XML with its pages, zones and segment labels. **Download Leiden+** gives it in the notation of papyri.info, its lines numbered and its pages as divisions, with every feature that notation has a way of writing; segments and boxes it has none for, and they are left out. **Delete…** removes it, which is refused while an edition compares it. A published transcript is open to readers at its address, read only.
 
 ## The edition
 
