@@ -2,10 +2,10 @@
   "$schema": "https://varians.eu/formats/2/zones.schema.json",
   "zones": [
     {
-      "id": "01M74M31WJ2YAJQ83J35TWYJCD",
-      "pageId": "01M74M31QP38ZTXASWBHFK4930",
+      "id": "01M77HWSAZG7Q5MKE5Q4VNH5CB",
+      "pageId": "01M77HWS77ZK75W5SWA65AR25W",
       "tokenIds": [
-        "01M74M31QWY1V01KQ2GKK0G57Z"
+        "01M77HWS7BYVSPN0NKKZ4N3FFX"
       ],
       "geometry": {
         "rect": {
@@ -16,7 +16,7 @@
         }
       },
       "feature": null,
-      "createdAt": "2026-11-11T06:17:57.395Z"
+      "createdAt": "2026-11-12T09:37:18.175Z"
     }
   ]
 }

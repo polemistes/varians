@@ -2,19 +2,19 @@
   "$schema": "https://varians.eu/formats/2/moments.schema.json",
   "moments": [
     {
-      "id": "01M74M31XB7EG60N8AXCXTHQ8Y",
+      "id": "01M77HWSBQ38P705D4S243EHHM",
       "version": 1,
       "name": "Collated against A, B and C",
       "kind": "named",
       "number": null,
       "basis": null,
-      "personId": "01M74M31NPV2Z4QD3Y12W6ADR6",
-      "at": "2026-11-11T06:17:57.419Z"
+      "personId": "01M77HWS57EHH2N9DW8ZHPKZAD",
+      "at": "2026-11-12T09:37:18.199Z"
     },
     {
-      "id": "01M74M323HRA62XZ43DGKXJC2Z",
+      "id": "01M77HWSHD22VHRTND75X6A14Y",
       "version": 2,
-      "name": "Version 1 (2026-11-11)",
+      "name": "Version 1 (2026-11-12)",
       "kind": "published",
       "number": 1,
       "basis": {
@@ -22,52 +22,52 @@
           {
             "siglum": "A",
             "states": [],
-            "witnessId": "01M74M31QGMJB60BSYS4BTPCSS",
+            "witnessId": "01M77HWS71EBAM7T3KW3RJVA2B",
             "variantSiglum": null,
-            "transcriptionId": "01M74M31QYRWTCAY52C7AXTQ8S"
+            "transcriptionId": "01M77HWS7CY87TVXSFFDWFN1DT"
           },
           {
             "siglum": "B",
             "states": [],
-            "witnessId": "01M74M31S8QWTQ85Q9BZPD5K3H",
+            "witnessId": "01M77HWS87AZ5Y184XMV67M9A4",
             "variantSiglum": null,
-            "transcriptionId": "01M74M31SEVWMVR45T2CVDZ0YX"
+            "transcriptionId": "01M77HWS8CMCY6X7C5MVQ5WF0K"
           },
           {
             "siglum": "C",
             "states": [],
-            "witnessId": "01M74M31T4J4B9D11X7939MX8P",
+            "witnessId": "01M77HWS8SADQFCWEKZD8SJH5G",
             "variantSiglum": null,
-            "transcriptionId": "01M74M31TAK0BGCS1YBXS9KZ9J"
+            "transcriptionId": "01M77HWS8XWEE8PDWWRSXKDJ3C"
           },
           {
             "siglum": "T",
             "states": [],
-            "witnessId": "01M74M31VJS3YP8JF4ZX2X36DF",
+            "witnessId": "01M77HWSA0B2ZKKNJRV7Z9YRD7",
             "variantSiglum": null,
             "transcriptionId": null
           }
         ],
         "versions": {
-          "01M74M31QYRWTCAY52C7AXTQ8S": 1,
-          "01M74M31SEVWMVR45T2CVDZ0YX": 1,
-          "01M74M31TAK0BGCS1YBXS9KZ9J": 1
+          "01M77HWS7CY87TVXSFFDWFN1DT": 1,
+          "01M77HWS8CMCY6X7C5MVQ5WF0K": 1,
+          "01M77HWS8XWEE8PDWWRSXKDJ3C": 1
         },
         "siteKinds": [
           {
-            "segmentId": "01M74M31PSZFQVWGFH4BT3XB6T",
-            "siteKey": "01M74M31PSZFQVWGFH4BT3XB6T:0",
+            "segmentId": "01M77HWS6982946N5KYJ1KDDM6",
+            "siteKey": "01M77HWS6982946N5KYJ1KDDM6:0",
             "kind": "textual"
           },
           {
-            "segmentId": "01M74M31Q9FXVH32H0APCNZ242",
-            "siteKey": "01M74M31TX6BFSVKQ4MJ7WY0WJ",
+            "segmentId": "01M77HWS6TE4KDZBK2VSPSDBA1",
+            "siteKey": "01M77HWS9FK8GVMKR4C2STH2CZ",
             "minor": true
           }
         ]
       },
-      "personId": "01M74M31NPV2Z4QD3Y12W6ADR6",
-      "at": "2026-11-11T06:17:57.613Z"
+      "personId": "01M77HWS57EHH2N9DW8ZHPKZAD",
+      "at": "2026-11-12T09:37:18.378Z"
     }
   ]
 }

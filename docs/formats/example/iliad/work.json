@@ -1,15 +1,14 @@
 {
   "$schema": "https://varians.eu/formats/2/work.schema.json",
   "formatVersion": 2,
-  "id": "01M74M31PCMT63C73QYJT1X0TW",
+  "id": "01M77HWS5WP3VTJYA020H1N6PP",
   "slug": "iliad",
   "title": "Iliad",
   "author": "Homer",
-  "language": "grc",
   "identifier": "urn:cts:greekLit:tlg0012.tlg001",
   "description": null,
   "scheme": {
-    "id": "01M74M31P9G40EMWX2DZ2GV1K9",
+    "id": "01M77HWS5SSW2T6ZTZ0GDQ24ZY",
     "name": "Book and line (epic)",
     "levels": [
       {
@@ -25,31 +24,18 @@
         "separator": "."
       }
     ],
-    "createdBy": "01M74M31NPV2Z4QD3Y12W6ADR6",
-    "createdAt": "2026-11-11T06:17:57.194Z"
-  },
-  "profile": {
-    "fold": {
-      "latinUV": false,
-      "caseFold": true,
-      "stripDiacritics": false,
-      "stripPunctuation": true
-    },
-    "latinUV": false,
-    "language": "grc",
-    "finalSigma": true,
-    "lowercaseCapitals": true,
-    "expandAbbreviations": true
+    "createdBy": "01M77HWS57EHH2N9DW8ZHPKZAD",
+    "createdAt": "2026-11-12T09:37:18.010Z"
   },
   "licence": "CC-BY-SA-4.0",
   "maintainers": [
     {
-      "id": "01M74M31NPV2Z4QD3Y12W6ADR6",
+      "id": "01M77HWS57EHH2N9DW8ZHPKZAD",
       "name": "Example Editor",
-      "since": "2026-11-11T06:17:57.199Z"
+      "since": "2026-11-12T09:37:18.014Z"
     }
   ],
   "mergedIds": [],
-  "createdBy": "01M74M31NPV2Z4QD3Y12W6ADR6",
-  "createdAt": "2026-11-11T06:17:57.197Z"
+  "createdBy": "01M77HWS57EHH2N9DW8ZHPKZAD",
+  "createdAt": "2026-11-12T09:37:18.012Z"
 }
