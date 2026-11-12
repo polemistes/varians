@@ -42,7 +42,6 @@ import { recordActions } from '../src/lib/strings/record-actions';
 import { replaceContent } from '../src/lib/server/documents/service.ts';
 import { DEFAULT_CONVENTIONS } from '../src/lib/server/seed/sample.ts';
 import { resolveLabels, schemeOfWork } from '../src/lib/server/segments.ts';
-import { setChosenWorks } from '../src/lib/server/transcription-works.ts';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
 const stamp = Date.now().toString(36);
@@ -114,7 +113,6 @@ async function build(userId: string) {
       keepsWrittenForm: false,
       visibility: 'published',
     });
-    await setChosenWorks(db, transcriptionId, [workId]);
     await replaceContent(db, 'transcription', transcriptionId, userId, 0, stream(which), 'seed');
     sigla.push({ witnessId, transcriptionId, siglum });
   }

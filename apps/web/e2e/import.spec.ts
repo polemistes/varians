@@ -104,10 +104,9 @@ test('a TEI file is taken as a text to start from, or as a transcript of the wit
   witnessSlug = new URL(page.url()).pathname.split('/').pop()!;
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'Make New Transcript' }).first().click();
+  // The window names the witness and asks for no work: the transcript is of its witness.
   const create = page.getByRole('dialog');
-  await create
-    .locator('select[name=workId]')
-    .selectOption({ label: `${workTitle} (Aristophanes)` });
+  await expect(create.locator('select[name=workId]')).toHaveCount(0);
   await create.locator('input[name=name]').fill('Lysistrata');
   await create.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForURL(/\/transcriptions\/[^/]+$/);
@@ -125,6 +124,18 @@ test('a TEI file is taken as a text to start from, or as a transcript of the wit
 
   // A text to start from: nothing is read before it is said what the file is.
   let dialog = await open();
+  // The transcript has no text assigned to a work yet, so the work is found in the registry: the search is open from the start.
+  await dialog
+    .getByRole('searchbox', { name: w.workField.search })
+    .filter({ visible: true })
+    .fill(workTitle);
+  await dialog
+    .getByRole('button', { name: new RegExp(workTitle) })
+    .filter({ visible: true })
+    .click();
+  await expect(
+    dialog.getByLabel(w.workField.label, { exact: true }).filter({ visible: true }),
+  ).toHaveValue(/.+/);
   const read = dialog.getByRole('button', { name: w.importer.tei.preview });
   await expect(read).toBeDisabled();
   await dialog.getByRole('radio', { name: new RegExp(w.importer.kindText) }).check();

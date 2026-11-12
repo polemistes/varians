@@ -123,7 +123,7 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   workSlug = new URL(page.url()).pathname.split('/').pop()!;
   await expect(page.locator('h1')).toHaveText(workTitle);
 
-  // Two witnesses, each with a transcription for the work.
+  // Two witnesses, each with a transcription, of the work by the text assigned to its segments.
   const transcriptionIds: string[] = [];
   for (const [siglum, name] of [
     ['X', `Codex Probandi ${stamp}`],
@@ -141,7 +141,6 @@ test('from a new work to a published edition and its archive', async ({ page }) 
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: reg.witness.newTranscription }).first().click();
     const dialog = page.getByRole('dialog');
-    await dialog.locator('select[name=workId]').selectOption({ label: `${workTitle} (Vergilius)` });
     await dialog.locator('input[name=name]').fill('Liber 1');
     await dialog.getByRole('button', { name: reg.transcription.create, exact: true }).click();
     await page.waitForURL(/\/transcriptions\/[^/]+$/);
@@ -298,13 +297,12 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   await expect(page.locator('h1')).toHaveText('Copy of Liber 1');
   // The copy opens on the first page with text, as the transcript does.
   await expect(page.locator('.cm-content .cm-line').nth(0)).toHaveText(words);
-  // The copy is for the same work; Settings shows it as the first of its works.
+  // The copy is of the same work, its text being assigned to the work's segments: the header leads to the work, and Settings has no list of works.
+  await expect(page.locator('header').getByRole('link', { name: workTitle })).toBeVisible();
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: actions.menu, exact: true }).click();
   await page.getByRole('menuitem', { name: actions.transcription.settings }).click();
-  await expect(page.getByRole('dialog').getByRole('group', { name: 'Works' })).toContainText(
-    workTitle,
-  );
+  await expect(page.getByRole('dialog').getByRole('group', { name: 'Works' })).toHaveCount(0);
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
 
   // A copy of the edition, from the editor: it opens in the editor with the same text.

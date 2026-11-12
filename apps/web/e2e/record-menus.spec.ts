@@ -46,7 +46,6 @@ import { site } from '../src/lib/strings/site';
 import { replaceContent } from '../src/lib/server/documents/service.ts';
 import { DEFAULT_CONVENTIONS } from '../src/lib/server/seed/sample.ts';
 import { resolveLabels, schemeOfWork } from '../src/lib/server/segments.ts';
-import { setChosenWorks } from '../src/lib/server/transcription-works.ts';
 
 const DATABASE_URL = 'postgres://varians@127.0.0.1:54329/varians_test';
 const stamp = Date.now().toString(36);
@@ -230,7 +229,6 @@ async function build(ownerId: string, otherId: string) {
       ownerId,
       keepsWrittenForm: false,
     });
-    await setChosenWorks(db, ids[key], [ids.work]);
     await replaceContent(db, 'transcription', ids[key], ownerId, 0, stream(), 'seed');
   }
 

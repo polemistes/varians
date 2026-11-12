@@ -151,7 +151,6 @@ test('text on no page is placed page by page, and goes back when its page is rem
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: reg.witness.newTranscription }).first().click();
   const create = page.getByRole('dialog');
-  await create.locator('select[name=workId]').selectOption({ label: `${workTitle} (Vergilius)` });
   await create.locator('input[name=name]').fill('Liber 1');
   await create.getByRole('button', { name: reg.transcription.create, exact: true }).click();
   await page.waitForURL(/\/transcriptions\/[^/]+$/);
