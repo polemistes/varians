@@ -452,7 +452,12 @@ export async function draftSource(db: Database, editionId: string): Promise<Edit
     loadEditionContext(db, editionId),
     editionMeta(db, editionId),
   ]);
-  return { context, meta, version: null, records: (ids, withNotes) => liveRecords(db, meta, ids, withNotes) };
+  return {
+    context,
+    meta,
+    version: null,
+    records: (ids, withNotes) => liveRecords(db, meta, ids, withNotes),
+  };
 }
 
 /**

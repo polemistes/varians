@@ -67,6 +67,7 @@ import { resolveLabels, resolveSegment, schemeOfWork } from './segments.ts';
 import { worksOfTranscription } from './transcription-works.ts';
 import { loadTranscriptionAccess } from './transcription-access.ts';
 import { copyEdition } from './edition-copy.ts';
+import { publishEdition, publishTranscription, withdrawVersion } from './publish.ts';
 import { createZones, zonesOf } from './zones.ts';
 
 // The test database is shared: every record here carries this run's tag and
@@ -621,7 +622,7 @@ describe('what a refusal to delete tells', () => {
   it('names the editions of others the person may see and counts the drafts they may not', async () => {
     const row = await work('Counted');
     const published = await edition(row.id, bob);
-    await db.update(editions).set({ visibility: 'published' }).where(eq(editions.id, published));
+    await publishEdition(db, published, bob.id);
     const shared = await edition(row.id, bob);
     await db.insert(editionCollaborators).values({ editionId: shared, userId: alice.id });
     const secret = await edition(row.id, bob);
@@ -852,10 +853,7 @@ describe('transcriptions of several works, and copies', () => {
     expect((await loadTranscriptionAccess(db, null, row.id))!.canView).toBe(false);
     expect((await loadTranscriptionAccess(db, bob, row.id))!.canView).toBe(false);
     expect((await loadTranscriptionAccess(db, alice, row.id))!.canView).toBe(true);
-    await db
-      .update(transcriptions)
-      .set({ visibility: 'published' })
-      .where(eq(transcriptions.id, row.id));
+    await publishTranscription(db, row.id, alice.id);
     expect((await loadTranscriptionAccess(db, null, row.id))!.canView).toBe(true);
     expect((await loadTranscriptionAccess(db, bob, row.id))!.canView).toBe(true);
   });
@@ -927,10 +925,6 @@ describe('transcriptions of several works, and copies', () => {
     const place = await witness('Edited codex');
     const second = await witness('Unseen codex');
     const base = await createTranscription(db, { witnessId: place.id, name: 'Base' }, alice.id);
-    await db
-      .update(transcriptions)
-      .set({ visibility: 'published' })
-      .where(eq(transcriptions.id, base.id));
     const hidden = await createTranscription(
       db,
       { witnessId: second.id, name: 'Hidden' },
@@ -969,8 +963,6 @@ describe('transcriptions of several works, and copies', () => {
       ownerId: alice.id,
       editors: ['Alice Editor'],
       preface: 'A preface.',
-      visibility: 'draft',
-      publishedVersion: null,
     });
     expect(own.edition.copiedFrom).toMatchObject({ editionId: id, published: false, number: null });
     expect(own.withoutTranscription).toBe(0);
@@ -979,10 +971,11 @@ describe('transcriptions of several works, and copies', () => {
       (await db.select().from(notes).where(eq(notes.editionId, own.edition.id))).map((n) => n.text),
     ).toEqual(['On arma.']);
 
-    await db
-      .update(editions)
-      .set({ visibility: 'published', publishedVersion: 1 })
-      .where(eq(editions.id, id));
+    // Published with both of Alice's transcripts; the version of the one Bob is not to see is withdrawn.
+    const published = await publishEdition(db, id, alice.id);
+    await withdrawVersion(db, 'transcription', hidden.id, 1, alice.id);
+    // What Alice does to the draft afterwards is not in Bob's copy of the version.
+    await db.update(editions).set({ preface: 'Later.' }).where(eq(editions.id, id));
     const theirs = await copyEdition(db, bob, id, 'Bob reads');
     if (typeof theirs === 'string') throw new Error(theirs);
     created.documents.push(theirs.edition.id);
@@ -991,8 +984,10 @@ describe('transcriptions of several works, and copies', () => {
       editionId: id,
       title: expect.stringContaining('Edition'),
       published: true,
-      version: 1,
+      version: published.version,
+      number: 1,
     });
+    expect(theirs.edition.preface).toBe('A preface.');
     // Alice's draft transcription stays out of Bob's copy; the witness stays in.
     expect(theirs.withoutTranscription).toBe(1);
     const sigla = await db

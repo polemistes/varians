@@ -1537,14 +1537,7 @@ function licenceFields(
 function keepOwner<T extends Record<string, unknown>>(ctx: Context, meta: T): Partial<T> {
   if (!ctx.guard.restricted) return meta;
   const rest: Record<string, unknown> = { ...meta };
-  for (const key of [
-    'ownerId',
-    'workId',
-    'witnessId',
-    'slug',
-    'licenceId',
-  ])
-    delete rest[key];
+  for (const key of ['ownerId', 'workId', 'witnessId', 'slug', 'licenceId']) delete rest[key];
   return rest as Partial<T>;
 }
 
@@ -1943,7 +1936,10 @@ async function importVersions(
     const [moment] = v.momentId
       ? await db.select({ id: moments.id }).from(moments).where(eq(moments.id, v.momentId))
       : [];
-    const [taken] = await db.select({ id: versions.id }).from(versions).where(eq(versions.id, v.id));
+    const [taken] = await db
+      .select({ id: versions.id })
+      .from(versions)
+      .where(eq(versions.id, v.id));
     // versions.json lists no changes: they are made here, from the text of the version before and of this one.
     const [before] = await db
       .select({ version: versions.version, snapshot: versions.snapshot })
@@ -2124,7 +2120,9 @@ async function editionSnapshotFrom(
     }),
     witnessVersions: e.witnessVersions ?? {},
     adoptions: (e.adoptions ?? []).map((a) =>
-      typeof a === 'string' ? { conjectureId: a, at: null } : { conjectureId: a.conjectureId, at: a.at ?? null },
+      typeof a === 'string'
+        ? { conjectureId: a, at: null }
+        : { conjectureId: a.conjectureId, at: a.at ?? null },
     ),
     notes: (e.notes ?? []).map((n) => {
       const local = person(ctx, n.personId);
@@ -2153,14 +2151,15 @@ async function editionSnapshotFrom(
           ]
         : [];
     }),
-    conjectures: (e.conjectures ?? []).map(withoutLabel) as unknown as EditionSnapshot['conjectures'],
+    conjectures: (e.conjectures ?? []).map(
+      withoutLabel,
+    ) as unknown as EditionSnapshot['conjectures'],
     readings: (e.readings ?? []).map(withoutLabel) as unknown as EditionSnapshot['readings'],
     citations: (e.citations ?? []) as unknown as EditionSnapshot['citations'],
     bibliography: (e.bibliography ?? []) as unknown as EditionSnapshot['bibliography'],
     constraints: (e.constraints ?? []) as unknown as EditionSnapshot['constraints'],
   };
 }
-
 
 /** Each person's review position on a document, for the persons who have an account here. */
 async function importReviewStates(

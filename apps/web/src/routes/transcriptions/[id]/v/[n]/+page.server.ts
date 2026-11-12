@@ -10,12 +10,7 @@ import { workbench as t } from '$lib/strings/workbench';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-  const data = await loadWorkbench(
-    locals.db,
-    locals.user,
-    params.id,
-    parseVersionNumber(params.n),
-  );
+  const data = await loadWorkbench(locals.db, locals.user, params.id, parseVersionNumber(params.n));
   if (!data) throw error(404, t.errors.notFound);
   return { ...clientData(data), crumb: workbenchCrumb(data) };
 };

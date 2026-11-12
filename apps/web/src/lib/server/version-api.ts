@@ -144,7 +144,11 @@ export async function versionsRequest(
       note: x.note,
       personName: x.personName,
       withdrawn: x.withdrawn
-        ? { at: x.withdrawn.at.toISOString(), personName: x.withdrawn.personName, note: x.withdrawn.note }
+        ? {
+            at: x.withdrawn.at.toISOString(),
+            personName: x.withdrawn.personName,
+            note: x.withdrawn.note,
+          }
         : null,
       changes: x.changes,
     })),

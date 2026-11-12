@@ -12,76 +12,74 @@ import {
 
 const at = (day: number) => new Date(Date.UTC(2026, 9, day));
 const moments: PublishedMoment[] = [
-  { number: 2, version: 5, at: at(2) },
-  { number: 1, version: 3, at: at(1) },
+  { number: 2, version: 5, at: at(2), note: 'Second.', withdrawn: null },
+  { number: 1, version: 3, at: at(1), note: null, withdrawn: null },
 ];
-const published = { visibility: 'published' as const, version: 7, publishedVersion: 5 };
-const draft = { visibility: 'draft' as const, version: 4, publishedVersion: null };
+const edition = { version: 7 };
 const reader = { canView: true, canEdit: false };
 const editor = { canView: true, canEdit: true };
 
 describe('decideReaderView', () => {
-  it('shows everyone the published version of a published edition', () => {
-    expect(decideReaderView(published, reader, moments, {})).toEqual({
-      atVersion: 5,
-      mode: { kind: 'published', number: 2, at: at(2).toISOString() },
+  it('shows everyone the latest version of an edition that has one', () => {
+    expect(decideReaderView(edition, reader, moments, {})).toEqual({
+      versionNumber: 2,
+      mode: { kind: 'published', number: 2, at: at(2).toISOString(), note: 'Second.' },
     });
   });
 
-  it('shows the draft of a published edition to its editors only, when asked', () => {
-    expect(decideReaderView(published, reader, moments, { draft: true })?.mode.kind).toBe(
-      'published',
-    );
-    expect(decideReaderView(published, editor, moments, { draft: true })).toEqual({
-      atVersion: null,
+  it('shows the draft of an edition with a version to its editors only, when asked', () => {
+    const asked = decideReaderView(edition, reader, moments, { draft: true });
+    expect(asked && 'mode' in asked ? asked.mode.kind : null).toBe('published');
+    expect(decideReaderView(edition, editor, moments, { draft: true })).toEqual({
+      versionNumber: null,
       mode: { kind: 'preview', version: 7, publishedNumber: 2 },
     });
   });
 
-  it('shows a draft to those who may view it, and to nobody else', () => {
-    expect(decideReaderView(draft, { canView: false, canEdit: false }, [], {})).toBeNull();
-    expect(decideReaderView(draft, editor, [], {})).toEqual({
-      atVersion: null,
-      mode: { kind: 'draft', version: 4 },
+  it('shows the draft of an edition with no version to those who may edit it, and to nobody else', () => {
+    expect(decideReaderView(edition, { canView: false, canEdit: false }, [], {})).toBeNull();
+    expect(decideReaderView(edition, editor, [], {})).toEqual({
+      versionNumber: null,
+      mode: { kind: 'draft', version: 7 },
     });
-    expect(decideReaderView(draft, editor, [], { draft: true })?.mode.kind).toBe('draft');
+    const asked = decideReaderView(edition, editor, [], { draft: true });
+    expect(asked && 'mode' in asked ? asked.mode.kind : null).toBe('draft');
   });
 
-  it('shows a published version by its number, and says whether it is the current one', () => {
-    expect(decideReaderView(published, reader, moments, { version: 1 })).toEqual({
-      atVersion: 3,
-      mode: { kind: 'version', number: 1, at: at(1).toISOString(), isCurrent: false },
+  it('shows a version by its number, and says whether it is the latest', () => {
+    expect(decideReaderView(edition, reader, moments, { version: 1 })).toEqual({
+      versionNumber: 1,
+      mode: { kind: 'version', number: 1, at: at(1).toISOString(), note: null, isCurrent: false },
     });
-    expect(decideReaderView(published, reader, moments, { version: 2 })?.mode).toMatchObject({
-      kind: 'version',
-      isCurrent: true,
+    expect(decideReaderView(edition, reader, moments, { version: 2 })).toMatchObject({
+      mode: { kind: 'version', isCurrent: true },
     });
-    expect(decideReaderView(published, reader, moments, { version: 3 })).toBeNull();
+    expect(decideReaderView(edition, reader, moments, { version: 3 })).toBeNull();
   });
 
-  it('keeps the versions of an edition taken back to a draft for those who may see it', () => {
+  it('gives a withdrawn version its page of its own, and the latest that stands at the edition', () => {
+    const withdrawn = { at: at(4), personId: null, personName: null, note: 'Wrong text.' };
+    const versions: PublishedMoment[] = [{ ...moments[0]!, withdrawn }, moments[1]!];
+    expect(decideReaderView(edition, reader, versions, { version: 2 })).toEqual({
+      withdrawn: versions[0],
+    });
+    expect(decideReaderView(edition, reader, versions, {})).toMatchObject({
+      versionNumber: 1,
+      mode: { kind: 'published', number: 1 },
+    });
+    // Every version withdrawn: no longer public, but each still has its page.
+    const none = versions.map((v) => ({ ...v, withdrawn }));
+    expect(decideReaderView(edition, { canView: false, canEdit: false }, none, {})).toBeNull();
     expect(
-      decideReaderView(draft, { canView: false, canEdit: false }, moments, { version: 1 }),
-    ).toBeNull();
-    expect(decideReaderView(draft, editor, moments, { version: 2 })?.mode).toMatchObject({
-      kind: 'version',
-      number: 2,
-      isCurrent: false,
-    });
-  });
-
-  it('shows a published edition without a published moment as published, unnumbered', () => {
-    expect(decideReaderView({ ...published, publishedVersion: 7 }, reader, [], {})).toEqual({
-      atVersion: 7,
-      mode: { kind: 'published', number: null, at: null },
-    });
+      decideReaderView(edition, { canView: false, canEdit: false }, none, { version: 1 }),
+    ).toEqual({ withdrawn: none[1] });
   });
 });
 
 describe('readerLinks', () => {
   it('keeps every link within the state shown', () => {
     expect(
-      readerLinks('iliad-1', { kind: 'published', number: 2, at: null }, reader, true),
+      readerLinks('iliad-1', { kind: 'published', number: 2, at: '', note: null }, reader, true),
     ).toEqual({
       basePath: '/editions/iliad-1',
       query: '',
@@ -96,7 +94,7 @@ describe('readerLinks', () => {
     expect(
       readerLinks(
         'iliad-1',
-        { kind: 'version', number: 1, at: '', isCurrent: false },
+        { kind: 'version', number: 1, at: '', note: null, isCurrent: false },
         editor,
         true,
       ),
@@ -123,10 +121,26 @@ describe('readerLinks', () => {
 });
 
 describe('readerVersions', () => {
-  it('links the current version to the edition and the others to their permalinks', () => {
-    expect(readerVersions('iliad-1', moments, 2)).toEqual([
-      { number: 2, at: at(2).toISOString(), href: '/editions/iliad-1', current: true },
-      { number: 1, at: at(1).toISOString(), href: '/editions/iliad-1/v/1', current: false },
+  it('links the latest version to the edition and the others to their permalinks, withdrawn ones marked', () => {
+    const withdrawn = { at: at(4), personId: null, personName: null, note: 'Wrong.' };
+    const listed = readerVersions('iliad-1', [{ ...moments[0]!, withdrawn }, moments[1]!], 1);
+    expect(listed.map(({ changes: _changes, ...v }) => v)).toEqual([
+      {
+        number: 2,
+        at: at(2).toISOString(),
+        note: 'Second.',
+        withdrawn: { at: at(4).toISOString(), note: 'Wrong.' },
+        href: '/editions/iliad-1/v/2',
+        current: false,
+      },
+      {
+        number: 1,
+        at: at(1).toISOString(),
+        note: null,
+        withdrawn: null,
+        href: '/editions/iliad-1',
+        current: true,
+      },
     ]);
     expect(readerVersions('iliad-1', moments, null).every((v) => v.href.includes('/v/'))).toBe(
       true,
@@ -136,10 +150,9 @@ describe('readerVersions', () => {
 
 describe('versionLine', () => {
   it('says which state the text is in', () => {
-    expect(versionLine({ kind: 'published', number: 2, at: at(2).toISOString() })).toBe(
+    expect(versionLine({ kind: 'published', number: 2, at: at(2).toISOString(), note: null })).toBe(
       'Version 2, published 2026-10-02',
     );
-    expect(versionLine({ kind: 'published', number: null, at: null })).toBe('Published');
     expect(versionLine({ kind: 'draft', version: 4 })).toBe('Draft, version 4');
     expect(versionLine({ kind: 'preview', version: 7, publishedNumber: 2 })).toBe(
       'Preview of the draft, version 7',

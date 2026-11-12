@@ -98,7 +98,6 @@ async function editionWith(
       name: 'Book 1',
       ownerId: userId,
       keepsWrittenForm: false,
-      visibility: 'published',
     });
     await replaceContent(db, 'transcription', id, userId, 0, content, 'seed');
     transcriptionOf[siglum] = id;
@@ -310,7 +309,7 @@ describe('collation in passages', () => {
       },
     );
     const published = await publishEdition(db, editionId, userId);
-    const before = await editionView(db, editionId, published.version);
+    const before = await editionView(db, editionId, published.number);
     expect(plan(before)).toEqual([['1.1'], ['1.2'], ['1.3']]);
     expect(variants(before)).toEqual(['1.2 *zeta: ed. A | xi: B']);
     // A's transcript is edited: its second line is given to 1.1, and a word of the third is read otherwise.
@@ -330,7 +329,7 @@ describe('collation in passages', () => {
     expect(plan(draft)).not.toEqual(plan(before));
     expect(variants(draft)).toContain('1.3 *theta: ed. B | omega: A');
     // The published version shows what it showed.
-    const then = await editionView(db, editionId, published.version);
+    const then = await editionView(db, editionId, published.number);
     expect(plan(then)).toEqual(plan(before));
     expect(variants(then)).toEqual(variants(before));
   });

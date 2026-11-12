@@ -18,7 +18,8 @@ import {
   conjectures,
   createDatabase,
   editionSiteKinds,
-  moments,
+  versions,
+  type EditionSnapshot,
   referenceSchemes,
   users,
   witnesses,
@@ -40,6 +41,7 @@ import { unpackReader } from '$lib/reader/wire';
 import { setSiteKind, setSiteMark, setSiteMinor } from './collation.ts';
 import { registerConjecture } from './conjectures.ts';
 import { publishEdition } from './publish.ts';
+import { forgetSnapshots } from './versions.ts';
 import { loadReader, readerDownload, type ReaderRequest } from './reader-pages.ts';
 import { editionView } from './reader.ts';
 import { seedSample, type SampleResult } from './seed/sample.ts';
@@ -278,14 +280,18 @@ describe('a minor variant', () => {
 });
 
 describe('a published version, and the minor variants', () => {
-  const basisOfLast = async () =>
+  const marksOfLast = async () =>
     (
-      await db
-        .select({ basis: moments.basis })
-        .from(moments)
-        .where(and(eq(moments.documentId, sample.editionId), eq(moments.kind, 'published')))
-        .orderBy(desc(moments.number))
-    )[0]!.basis!;
+      (
+        await db
+          .select({ snapshot: versions.snapshot })
+          .from(versions)
+          .where(
+            and(eq(versions.documentId, sample.editionId), eq(versions.documentKind, 'edition')),
+          )
+          .orderBy(desc(versions.number))
+      )[0]!.snapshot as EditionSnapshot
+    ).siteKinds;
 
   it('keeps the variants minor as they were when it was published, whatever the editors do afterwards', async () => {
     const eight = await placeOf('1.8', 'συνέηκε');
@@ -294,10 +300,12 @@ describe('a published version, and the minor variants', () => {
     const id2 = two.segment.segmentId;
     await markMinor(eight);
     await publishEdition(db, sample.editionId, userId);
-    // What stands in the basis is every mark: the kind the sample gives a place, and the minor variant.
-    const recorded = (await basisOfLast()).siteKinds!;
+    // What stands in the version is every mark: the kind the sample gives a place, and the minor variant.
+    const recorded = await marksOfLast();
     expect(recorded).toHaveLength(2);
-    expect(recorded).toContainEqual({ segmentId: id8, siteKey: eight.key, minor: true });
+    expect(recorded).toContainEqual(
+      expect.objectContaining({ segmentId: id8, siteKey: eight.key, minor: true }),
+    );
     expect(recorded.filter((m) => m.kind === 'textual')).toHaveLength(1);
 
     const flagged = (data: ReaderData, id: string, index: number) =>
@@ -331,44 +339,23 @@ describe('a published version, and the minor variants', () => {
     await markMajor(two);
   });
 
-  it('reads a basis that says `unreported`, as the first marks of the kind were recorded, as minor', async () => {
+  it('reads a mark that says `unreported`, as the first marks of the kind were recorded, as minor', async () => {
     const eight = await placeOf('1.8', 'συνέηκε');
     await markMinor(eight);
     await publishEdition(db, sample.editionId, userId);
     await markMajor(eight);
-    // The basis is made to be as it was written when the grade had the kind's place.
+    // The version's marks are made to be as an archive wrote them when the grade had the kind's place.
     await db.execute(
-      sql`update ${moments} set basis = jsonb_set(basis, '{siteKinds}', (select coalesce(jsonb_agg(case when e->>'minor' = 'true' then jsonb_build_object('segmentId', e->'segmentId', 'siteKey', e->'siteKey', 'kind', 'unreported') else e end), '[]'::jsonb) from jsonb_array_elements(basis->'siteKinds') e)) where ${moments.documentId} = ${sample.editionId} and ${moments.kind} = 'published'`,
+      sql`update ${versions} set snapshot = jsonb_set(snapshot, '{siteKinds}', (select coalesce(jsonb_agg(case when e->>'minor' = 'true' then jsonb_build_object('segmentId', e->'segmentId', 'siteKey', e->'siteKey', 'kind', 'unreported') else e end), '[]'::jsonb) from jsonb_array_elements(snapshot->'siteKinds') e)) where ${versions.documentId} = ${sample.editionId} and ${versions.documentKind} = 'edition'`,
     );
-    expect(JSON.stringify((await basisOfLast()).siteKinds)).toContain('unreported');
+    // Snapshots are kept as read; this one is read afresh.
+    forgetSnapshots();
+    expect(JSON.stringify(await marksOfLast())).toContain('unreported');
     const data = await reader(PUBLISHED);
     const site = data.segments[eight.segment.segmentId]!.collation.sites.find(
       (x) => x.index === eight.site.index,
     )!;
     expect(site.minor).toBe(true);
     expect(printed(data, eight.segment.segmentId)).toEqual([]);
-  });
-
-  it('reads a version published before the marks were recorded with the marks set before it', async () => {
-    const eight = await placeOf('1.8', 'συνέηκε');
-    const two = await placeOf('1.2', 'μυρία');
-    // The published version is made to be of the old kind: no marks in its basis, and a time after the first mark.
-    await markMinor(eight);
-    await db.execute(
-      sql`update ${moments} set basis = basis - 'siteKinds', at = now() where ${moments.documentId} = ${sample.editionId} and ${moments.kind} = 'published'`,
-    );
-    expect((await basisOfLast()).siteKinds).toBeUndefined();
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    await markMinor(two);
-    const data = await reader(PUBLISHED);
-    const minorAt = (p: Place) =>
-      data.segments[p.segment.segmentId]!.collation.sites.find((x) => x.index === p.site.index)
-        ?.minor === true;
-    expect(minorAt(eight)).toBe(true);
-    expect(minorAt(two)).toBe(false);
-    expect(printed(data, eight.segment.segmentId)).toEqual([]);
-    expect(printed(data, two.segment.segmentId)).toHaveLength(2);
-    await markMajor(eight);
-    await markMajor(two);
   });
 });

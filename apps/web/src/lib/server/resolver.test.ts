@@ -116,7 +116,9 @@ describe('record addresses', () => {
     const sample = await seedSample(db, owner);
     const resolved = (await resolveId(db, sample.editionId))!;
     expect((await visibilityOf(db, null, resolved)).visible).toBe(false);
-    await publishEdition(db, sample.editionId, owner);
+    const published = await publishEdition(db, sample.editionId, owner);
+    // What the editors do afterwards is not what the public is given.
+    await db.update(editions).set({ title: 'Renamed' }).where(eq(editions.id, sample.editionId));
     const anonymous = await visibilityOf(db, null, resolved);
     expect(anonymous).toEqual({ visible: true, edits: false });
     expect(await pageOf(db, resolved, anonymous)).toBe(`/editions/${sample.editionSlug}`);
@@ -132,6 +134,7 @@ describe('record addresses', () => {
     const record = (await recordJson(db, null, resolved, anonymous)) as {
       $schema: string;
       id: string;
+      title: string;
       version: number;
       licence: string;
       reviews?: unknown;
@@ -139,8 +142,9 @@ describe('record addresses', () => {
     expect(record.$schema).toBe('https://varians.eu/formats/2/edition.schema.json');
     expect(record.id).toBe(sample.editionId);
     expect(record.licence).toBe('CC-BY-SA-4.0');
-    const [edition] = await db.select().from(editions).where(eq(editions.id, sample.editionId));
-    expect(record.version).toBe(edition!.publishedVersion);
+    // The latest version, as it was published.
+    expect(record.version).toBe(published.version);
+    expect(record.title).toBe('Iliad 1, a working edition');
   }, 60_000);
 
   it('answer records as the archive represents them', async () => {

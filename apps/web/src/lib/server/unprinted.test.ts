@@ -107,7 +107,6 @@ async function transcription(siglum: string, content: Stream): Promise<string> {
     name: 'Book 1',
     ownerId: userId,
     keepsWrittenForm: false,
-    visibility: 'published',
   });
   await replaceContent(db, 'transcription', id, userId, 0, content, 'seed');
   transcriptionOf[siglum] = id;
@@ -436,7 +435,7 @@ describe('a segment the edition does not print', () => {
     expect(readingsOf([unprintedVariant(now.segments, three)!.site])).toEqual([
       ['*(nothing): ed. A', 'eta theta iota: B'],
     ]);
-    const then = await editionView(db, editionId, published.version);
+    const then = await editionView(db, editionId, published.number);
     expect(readingsOf([unprintedVariant(then.segments, three)!.site])).toEqual([
       ['*(nothing): ed. B', 'eta theta iota: A'],
     ]);
@@ -447,7 +446,7 @@ describe('a segment the edition does not print', () => {
     expect(
       Object.values(none.segments).some((p) => p.segments.some((s) => s.segmentId === three)),
     ).toBe(false);
-    const still = await editionView(db, editionId, published.version);
+    const still = await editionView(db, editionId, published.number);
     expect(readingsOf([unprintedVariant(still.segments, three)!.site])).toEqual([
       ['*(nothing): ed. B', 'eta theta iota: A'],
     ]);

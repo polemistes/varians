@@ -230,7 +230,13 @@ export async function publishEdition(
       userId,
       'published',
     );
-    const changes = await changesSince(tx, 'edition', editionId, last?.version ?? 0, edition.version);
+    const changes = await changesSince(
+      tx,
+      'edition',
+      editionId,
+      last?.version ?? 0,
+      edition.version,
+    );
     await tx.insert(versions).values({
       id: newId(),
       documentKind: 'edition',

@@ -18,7 +18,6 @@ import {
   editionSigla,
   editionSiteReviews,
   editions,
-  moments,
   notes,
   pages,
   referenceSchemes,
@@ -33,12 +32,16 @@ import {
   workMaintainers,
   works,
   type Database,
+  type EditionSnapshot,
   type Role,
+  type TranscriptionSnapshot,
 } from '@varians/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
 import type { Actor } from './authz';
 import { replaceContent, saveOps } from './documents/service.ts';
+import { publishEdition } from './publish.ts';
+import { versionByNumber } from './versions.ts';
 import { searchWitnesses, searchWorks } from './library';
 import {
   addMaintainer,
@@ -360,20 +363,7 @@ describe('merging witnesses', () => {
       })
       .returning();
     const ed = await edition(w.id, bob, [{ witnessId: from.id, transcriptionId: tr.id }]);
-    const momentId = newId();
-    await db.insert(moments).values({
-      id: momentId,
-      documentKind: 'edition',
-      documentId: ed,
-      version: 0,
-      name: 'Published',
-      kind: 'published',
-      number: 1,
-      basis: {
-        sigla: [{ siglum: 'S0', witnessId: from.id, transcriptionId: tr.id }],
-        versions: {},
-      },
-    });
+    const published = await publishEdition(db, ed, bob.id);
 
     const preview = await previewWitnessMerge(db, from.id, into.id);
     expect(preview!.moves).toMatchObject({
@@ -399,10 +389,16 @@ describe('merging witnesses', () => {
     expect(
       (await db.select().from(editionSigla).where(eq(editionSigla.editionId, ed)))[0]!.witnessId,
     ).toBe(into.id);
-    expect(
-      (await db.select().from(moments).where(eq(moments.id, momentId)))[0]!.basis!.sigla[0]!
-        .witnessId,
-    ).toBe(into.id);
+    // The version and the transcript's version name the witness under its new id.
+    const version = await versionByNumber(db, 'edition', ed, published.number);
+    expect((version!.snapshot as EditionSnapshot).sigla[0]!.witnessId).toBe(into.id);
+    const compared = await versionByNumber(
+      db,
+      'transcription',
+      tr.id,
+      published.witnessVersions[tr.id]!,
+    );
+    expect((compared!.snapshot as TranscriptionSnapshot).witnessId).toBe(into.id);
     const pageRows = await db
       .select()
       .from(pages)

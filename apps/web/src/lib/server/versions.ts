@@ -35,6 +35,7 @@ import {
 import type { Stream } from '@varians/core';
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { withoutLatin } from '../edition/conventions.ts';
 import { changesBetween } from '../history/changes.ts';
 import { documentAt, loadDocument } from './documents/service.ts';
 
@@ -104,7 +105,12 @@ export interface VersionSummary {
   note: string | null;
   personId: string | null;
   personName: string | null;
-  withdrawn: { at: Date; personId: string | null; personName: string | null; note: string | null } | null;
+  withdrawn: {
+    at: Date;
+    personId: string | null;
+    personName: string | null;
+    note: string | null;
+  } | null;
   changes: VersionChanges;
 }
 
@@ -401,7 +407,8 @@ export async function editionSnapshot(
     sources: edition.sources,
     rightsNote: edition.rightsNote,
     licenceId: edition.licenceId,
-    conventions: edition.conventions,
+    // A setting no longer had (Latin abbreviations) is not kept.
+    conventions: withoutLatin(edition.conventions),
     copiedFrom: edition.copiedFrom,
     content: edition.content,
     sigla: sigla.map((s) => ({

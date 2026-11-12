@@ -113,12 +113,23 @@ export async function syncState(
   if (!only) return null;
   const documents: SyncDocument[] = [];
   // A record the viewer may not edit is held as its latest version, without its draft; one with no version not at all.
-  const shown = async (kind: 'transcription' | 'edition', id: string, working: boolean, current: number) => {
-    if (working) documents.push({ id, kind, head: await headAt(db, kind, id, null), version: current });
+  const shown = async (
+    kind: 'transcription' | 'edition',
+    id: string,
+    working: boolean,
+    current: number,
+  ) => {
+    if (working)
+      documents.push({ id, kind, head: await headAt(db, kind, id, null), version: current });
     else {
       const latest = await latestVersion(db, kind, id);
       if (latest)
-        documents.push({ id, kind, head: await headAt(db, kind, id, latest.version), version: latest.version });
+        documents.push({
+          id,
+          kind,
+          head: await headAt(db, kind, id, latest.version),
+          version: latest.version,
+        });
     }
   };
   for (const row of await connectedTranscriptions(db, workId)) {

@@ -30,11 +30,11 @@ const visitor = null;
 const work = { id: 'w1', createdBy: 'owner' };
 const witness = { id: 'ms1', createdBy: 'owner' };
 
-const draftTranscription = { id: 't1', ownerId: 'owner', visibility: 'draft' as const };
-const publishedTranscription = { id: 't2', ownerId: 'owner', visibility: 'published' as const };
+const draftTranscription = { id: 't1', ownerId: 'owner', hasVersion: false };
+const publishedTranscription = { id: 't2', ownerId: 'owner', hasVersion: true };
 
-const draftEdition = { id: 'e1', ownerId: 'owner', visibility: 'draft' as const };
-const publishedEdition = { id: 'e2', ownerId: 'owner', visibility: 'published' as const };
+const draftEdition = { id: 'e1', ownerId: 'owner', hasVersion: false };
+const publishedEdition = { id: 'e2', ownerId: 'owner', latestVersion: 3 };
 
 const conjecture = { id: 'c1', ownerId: 'owner', workId: 'w2' };
 
@@ -93,7 +93,7 @@ describe('transcriptions', () => {
     expect(canEditTranscription(visitor, draftTranscription, emptyGrants())).toBe(false);
   });
 
-  it('are seen by everyone once published, and otherwise by those who may edit them', () => {
+  it('are seen by everyone once they have a version, and otherwise by those who may edit them', () => {
     expect(canViewTranscription(visitor, publishedTranscription, emptyGrants())).toBe(true);
     expect(canViewTranscription(stranger, draftTranscription, emptyGrants())).toBe(false);
     expect(canViewTranscription(collaborator, draftTranscription, collaboratorGrants())).toBe(true);
@@ -117,7 +117,7 @@ describe('editions', () => {
     expect(canEditEdition(visitor, draftEdition, [])).toBe(false);
   });
 
-  it('are seen by everyone once published', () => {
+  it('are seen by everyone once they have a version', () => {
     expect(canViewEdition(visitor, publishedEdition, [])).toBe(true);
     expect(canViewEdition(stranger, draftEdition, [])).toBe(false);
     expect(canViewEdition(collaborator, draftEdition, ['collab'])).toBe(true);

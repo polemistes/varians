@@ -423,9 +423,7 @@ async function transcription(
   keepsWrittenForm: boolean,
 ): Promise<string> {
   const id = newId();
-  await db
-    .insert(transcriptions)
-    .values({ id, witnessId, name, ownerId, keepsWrittenForm });
+  await db.insert(transcriptions).values({ id, witnessId, name, ownerId, keepsWrittenForm });
   await replaceContent(db, 'transcription', id, ownerId, 0, content, 'seed');
   return id;
 }

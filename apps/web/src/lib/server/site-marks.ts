@@ -28,7 +28,10 @@ export function marksOfSnapshot(siteKinds: EditionSnapshot['siteKinds']): Marks 
     const mark = markOfBasis(entry);
     if (!mark.kind && !mark.minor) continue;
     const bySite = out.get(entry.segmentId) ?? new Map();
-    bySite.set(entry.siteKey, { ...mark, setAt: entry.setAt ? new Date(entry.setAt) : new Date(0) });
+    bySite.set(entry.siteKey, {
+      ...mark,
+      setAt: entry.setAt ? new Date(entry.setAt) : new Date(0),
+    });
     out.set(entry.segmentId, bySite);
   }
   return out;

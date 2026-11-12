@@ -23,6 +23,7 @@ import { eq, inArray } from 'drizzle-orm';
 import type pg from 'pg';
 import type { CurrentUser } from '$lib/types';
 import { recordActions } from '$lib/strings/record-actions';
+import { publishTranscription } from './publish.ts';
 import { registry } from '$lib/strings/registry';
 import { load as frontPage } from '../../routes/(public)/+page.server';
 import { load as witnessPage } from '../../routes/(public)/witnesses/[slug]/+page.server';
@@ -159,10 +160,7 @@ beforeAll(async () => {
     return id;
   };
   ids.published = await make(`Published ${tag}`);
-  await db
-    .update(transcriptions)
-    .set({ visibility: 'published' })
-    .where(eq(transcriptions.id, ids.published));
+  await publishTranscription(db, ids.published, owner.id);
   ids.draft = await make(`Draft ${tag}`);
   ids.named = await make(`Named ${tag}`, second.id);
   ids.spare = await make(`Spare ${tag}`);

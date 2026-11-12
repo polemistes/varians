@@ -8,13 +8,15 @@ import {
   witnesses,
   works,
   type Database,
+  versions,
 } from '@varians/db';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import pg from 'pg';
 import { grantsFor } from './authz.ts';
 import { candidateWitnesses, createEdition } from './editions.ts';
 import { loadEditionContext } from './collation.ts';
 import { seedSample } from './seed/sample.ts';
+import { publishTranscription } from './publish.ts';
 
 const url = process.env.DATABASE_URL_TEST ?? 'postgres://varians@127.0.0.1:54329/varians_test';
 let db: Database;
@@ -94,18 +96,31 @@ describe('createEdition', () => {
       passwordHash: 'x',
     });
     try {
+      // The owner's transcripts have no version that stands: drafts, which a stranger does not see.
       await db
-        .update(transcriptions)
-        .set({ visibility: 'draft' })
-        .where(eq(transcriptions.ownerId, userId));
+        .update(versions)
+        .set({ withdrawnAt: new Date() })
+        .where(
+          and(
+            eq(versions.documentKind, 'transcription'),
+            inArray(
+              versions.documentId,
+              db
+                .select({ id: transcriptions.id })
+                .from(transcriptions)
+                .where(eq(transcriptions.ownerId, userId)),
+            ),
+          ),
+        );
       expect(
         await candidateWitnesses(db, sample.workId, stranger, await grantsFor(db, stranger)),
       ).toEqual([]);
       const [a] = await db.select().from(witnesses).where(eq(witnesses.slug, 'venetus-a'));
-      await db
-        .update(transcriptions)
-        .set({ visibility: 'published' })
+      const [aTranscription] = await db
+        .select({ id: transcriptions.id })
+        .from(transcriptions)
         .where(eq(transcriptions.witnessId, a!.id));
+      await publishTranscription(db, aTranscription!.id, userId);
       expect(
         (await candidateWitnesses(db, sample.workId, stranger, await grantsFor(db, stranger))).map(
           (c) => c.siglum,

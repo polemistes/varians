@@ -256,9 +256,7 @@ export function readerVersions(
     number: v.number,
     at: v.at.toISOString(),
     note: v.note,
-    withdrawn: v.withdrawn
-      ? { at: v.withdrawn.at.toISOString(), note: v.withdrawn.note }
-      : null,
+    withdrawn: v.withdrawn ? { at: v.withdrawn.at.toISOString(), note: v.withdrawn.note } : null,
     changes: v.changes ?? {
       from: 0,
       to: v.version,
@@ -348,12 +346,16 @@ export async function readerSites(
   segmentIds: string[],
 ): Promise<Pick<ReaderWireData, 'segments' | 'texts'>> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await viewOf(db, await editionSource(db, resolved.access.edition.id, resolved.versionNumber), {
-    segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
-    lean: true,
-    lines: false,
-    order: false,
-  });
+  const view = await viewOf(
+    db,
+    await editionSource(db, resolved.access.edition.id, resolved.versionNumber),
+    {
+      segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
+      lean: true,
+      lines: false,
+      order: false,
+    },
+  );
   return packSegments(Object.values(view.segments));
 }
 
@@ -370,13 +372,17 @@ export async function readerDetail(
   segmentIds: string[],
 ): Promise<Record<string, SegmentDetail>> {
   const resolved = await resolveReader(db, user, slug, request);
-  const view = await viewOf(db, await editionSource(db, resolved.access.edition.id, resolved.versionNumber), {
-    segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
-    lean: true,
-    lines: false,
-    order: false,
-    detail: false,
-  });
+  const view = await viewOf(
+    db,
+    await editionSource(db, resolved.access.edition.id, resolved.versionNumber),
+    {
+      segments: [...new Set(segmentIds)].slice(0, MAX_REFRESH),
+      lean: true,
+      lines: false,
+      order: false,
+      detail: false,
+    },
+  );
   const out: Record<string, SegmentDetail> = {};
   for (const segment of Object.values(view.segments))
     out[segment.segmentId] = detailOf(

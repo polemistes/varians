@@ -22,12 +22,13 @@ import {
   type Database,
 } from '@varians/db';
 import { and, eq, inArray } from 'drizzle-orm';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
 import { seedSample } from '../seed/sample.ts';
 import { publishEdition } from '../publish.ts';
+import { hasVersion } from '../versions.ts';
 import { createTranscription } from '../registry.ts';
 import { worksOfTranscription } from '../transcription-works.ts';
 import { folderName, writeArchive } from './archive.ts';
@@ -96,6 +97,20 @@ describe('a crafted archive', () => {
     const edition = await json(path.join(editionDir, 'edition.json'));
     edition.slug = '../../../../tmp/evil';
     await writeFile(path.join(editionDir, 'edition.json'), JSON.stringify(edition));
+    // A version of it, as if its owner had published one.
+    await mkdir(path.join(editionDir, 'versions', '1'), { recursive: true });
+    await writeFile(
+      path.join(editionDir, 'versions', '1', 'edition.json'),
+      JSON.stringify(edition),
+    );
+    await writeFile(
+      path.join(editionDir, 'versions.json'),
+      JSON.stringify({
+        versions: [
+          { id: newId(), number: 1, version: 1, at: new Date().toISOString(), withdrawn: null },
+        ],
+      }),
+    );
     await importArchive(db, dir, attacker, asAttacker);
     const [page] = await db.select().from(pages).where(eq(pages.id, first.id));
     expect(page!.imagePath).toBeNull();
@@ -125,8 +140,6 @@ describe('a crafted archive', () => {
     // The edition: published, its collaborators replaced by the attacker's friend, another's page id under witness B, the scheme renamed.
     const editionDir = path.join(dir, 'editions', (await readdir(path.join(dir, 'editions')))[0]!);
     const edition = await json(path.join(editionDir, 'edition.json'));
-    edition.visibility = 'published';
-    edition.publishedVersion = 1;
     edition.collaborators = [];
     (edition.notes as { id: string; text: string }[])[0]!.text = 'rewritten by the attacker';
     await writeFile(path.join(editionDir, 'edition.json'), JSON.stringify(edition));
@@ -141,8 +154,8 @@ describe('a crafted archive', () => {
 
     await importArchive(db, dir, attacker, asAttacker);
     const [e] = await db.select().from(editions).where(eq(editions.id, sample.editionId));
-    expect(e!.visibility).toBe('draft');
-    expect(e!.publishedVersion).toBeNull();
+    // A restricted import publishes nothing.
+    expect(await hasVersion(db, 'edition', sample.editionId)).toBe(false);
     expect(e!.ownerId).toBe(owner);
     expect(
       await db

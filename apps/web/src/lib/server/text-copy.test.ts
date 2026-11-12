@@ -30,6 +30,7 @@ import type pg from 'pg';
 import { VersionConflict, loadDocument, replaceContent, saveOps } from './documents/service.ts';
 import { undoChangeset } from './history.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
+import { publishTranscription } from './publish.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { CopyRefused, copyText, previewCopy } from './text-copy.ts';
 
@@ -80,7 +81,7 @@ function stream(lines: Record<string, string>): Stream {
 async function transcription(
   siglum: string,
   content: Stream,
-  options: { owner?: string; visibility?: 'draft' | 'published' } = {},
+  options: { owner?: string; published?: boolean } = {},
 ): Promise<string> {
   const witnessId = newId();
   await db.insert(witnesses).values({
@@ -97,9 +98,9 @@ async function transcription(
     name: 'Book 1',
     ownerId: options.owner ?? userId,
     keepsWrittenForm: false,
-    visibility: options.visibility ?? 'published',
   });
   await replaceContent(db, 'transcription', id, options.owner ?? userId, 0, content, 'seed');
+  if (options.published ?? true) await publishTranscription(db, id, options.owner ?? userId);
   transcriptionOf[siglum] = id;
   return witnessId;
 }
@@ -152,7 +153,7 @@ beforeAll(async () => {
   const b = await transcription('B', stream(B));
   // C is not in the conspectus; D is, but is another person's draft.
   await transcription('C', stream(A));
-  const d = await transcription('D', stream(B), { owner: strangerId, visibility: 'draft' });
+  const d = await transcription('D', stream(B), { owner: strangerId, published: false });
   editionId = newId();
   await db.insert(editions).values({
     id: editionId,

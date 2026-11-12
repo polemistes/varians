@@ -4,7 +4,6 @@ import {
   changesets,
   createDatabase,
   editions,
-  transcriptions,
   users,
   witnesses,
   works,
@@ -16,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
 import { writeArchive } from '../archive/archive.ts';
+import { hasVersion, latestVersion } from '../versions.ts';
 import { hasXmllint, validateArchiveDir, validateTeiFiles } from '../archive/validate.ts';
 import { transcriptionPageOrder } from '../conform.ts';
 import { loadDocument } from '../documents/service.ts';
@@ -100,14 +100,12 @@ describe('seedStress at a small size', () => {
 
   it('has a version published half-way and more work after it', async () => {
     const [edition] = await db.select().from(editions).where(eq(editions.id, result.editionId));
-    expect(edition!.publishedVersion).not.toBeNull();
-    expect(edition!.version).toBeGreaterThan(edition!.publishedVersion!);
-    expect(edition!.visibility).toBe('published');
-    const rows = await db
-      .select({ visibility: transcriptions.visibility })
-      .from(transcriptions)
-      .where(inArray(transcriptions.id, Object.values(result.transcriptionIds)));
-    expect(rows.every((r) => r.visibility === 'published')).toBe(true);
+    const latest = await latestVersion(db, 'edition', result.editionId);
+    expect(latest).not.toBeNull();
+    expect(edition!.version).toBeGreaterThan(latest!.version);
+    // The transcripts it compares were published with it.
+    for (const id of Object.values(result.transcriptionIds))
+      expect(await hasVersion(db, 'transcription', id)).toBe(true);
   });
 
   it('makes the editors work through the application, of every kind', () => {

@@ -42,7 +42,7 @@ import { candidateWitnesses, createEdition } from './editions.ts';
 import { loadEditionAccess } from './edition-access.ts';
 import { publishedEditions, searchPublishedEditions, searchWorks } from './library.ts';
 import { registerConjecture, reportReading } from './conjectures.ts';
-import { publishEdition } from './publish.ts';
+import { publishEdition, publishTranscription } from './publish.ts';
 import { limits } from './rate-limit.ts';
 import {
   createTranscription,
@@ -184,9 +184,9 @@ beforeAll(async () => {
     'test',
   );
   draftTranscription = (await loadTranscriptionAccess(db, owner, created.id))!.transcription;
+  // The sample publishes its transcripts.
   publishedTranscription = (await db.query.transcriptions.findFirst({
-    where: (t, { and, eq: same }) =>
-      and(same(t.witnessId, sample.witnessIds.B!), same(t.visibility, 'published')),
+    where: (t, { eq: same }) => same(t.witnessId, sample.witnessIds.B!),
   }))!;
   conjecture = await registerConjecture(
     db,
@@ -673,10 +673,7 @@ describe('what is unfinished stays invisible', () => {
   it('is made public by publishing, and by nothing else', async () => {
     // Publishing the transcript opens it to the stranger; the draft edition stays closed.
     // Neither the conjectures it has adopted nor the conjectures and reported readings entered meanwhile open it.
-    await db.execute(
-      (await import('drizzle-orm'))
-        .sql`update transcriptions set visibility = 'published' where id = ${draftTranscription.id}`,
-    );
+    await publishTranscription(db, draftTranscription.id, ownerId);
     expect((await loadTranscriptionAccess(db, stranger, draftTranscription.id))!.canView).toBe(
       true,
     );

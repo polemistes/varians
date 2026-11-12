@@ -150,6 +150,7 @@ describe('archive', () => {
       transcription: () => true,
       edition: () => false,
       editionWorking: () => true,
+      transcriptionWorking: () => true,
       records: true,
     };
     const dir = await writeArchive(db, sample.workId, root, { only });

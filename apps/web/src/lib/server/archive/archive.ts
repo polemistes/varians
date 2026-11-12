@@ -369,9 +369,7 @@ async function loadWorkContext(
       .orderBy(asc(editions.id))
   )
     .map((e) => ({ ...e.row, hasVersion: e.hasVersion }))
-    .filter(
-      (e) => (!only || only.edition(e)) && (!only || only.editionWorking(e) || e.hasVersion),
-    );
+    .filter((e) => (!only || only.edition(e)) && (!only || only.editionWorking(e) || e.hasVersion));
   const siglaRows = editionRows.length
     ? await db
         .select()
@@ -395,7 +393,10 @@ async function loadWorkContext(
   const transcriptionRows = (
     transcriptionIds.size
       ? await db
-          .select({ row: transcriptions, hasVersion: hasVersionSql('transcription', transcriptions.id) })
+          .select({
+            row: transcriptions,
+            hasVersion: hasVersionSql('transcription', transcriptions.id),
+          })
           .from(transcriptions)
           .where(inArray(transcriptions.id, [...transcriptionIds]))
       : []
@@ -995,7 +996,11 @@ function editionWorking(ctx: WorkContext, e: EditionRow): boolean {
 }
 
 /** The latest version of a record that is not withdrawn, as the archive lists it. */
-function latestOf(ctx: WorkContext, kind: 'transcription' | 'edition', id: string): VersionRow | null {
+function latestOf(
+  ctx: WorkContext,
+  kind: 'transcription' | 'edition',
+  id: string,
+): VersionRow | null {
   const list = ctx.versionRows.get(`${kind}:${id}`) ?? [];
   for (let i = list.length - 1; i >= 0; i--) if (!list[i]!.withdrawnAt) return list[i]!;
   return null;
@@ -1145,7 +1150,10 @@ async function transcriptionStateFiles(
     ),
   );
   if (readable && writers.readable !== false)
-    await writeText(path.join(dir, 'transcription.txt'), toText(t.content, { form: 'read' }) + '\n');
+    await writeText(
+      path.join(dir, 'transcription.txt'),
+      toText(t.content, { form: 'read' }) + '\n',
+    );
   if (writers.tei === false) return;
   const pageRows = await db
     .select()
@@ -1331,17 +1339,11 @@ async function editionSourceFiles(
   const noteRows = snapshot
     ? snapshot.notes
     : (
-        await db
-          .select()
-          .from(notes)
-          .where(eq(notes.editionId, edition.id))
-          .orderBy(asc(notes.id))
+        await db.select().from(notes).where(eq(notes.editionId, edition.id)).orderBy(asc(notes.id))
       ).map((n) => ({ ...n, createdAt: iso(n.createdAt) }));
   const kindRows = snapshot
     ? snapshot.siteKinds
-    : (
-        await db.select().from(editionSiteKinds).where(eq(editionSiteKinds.editionId, edition.id))
-      )
+    : (await db.select().from(editionSiteKinds).where(eq(editionSiteKinds.editionId, edition.id)))
         .map((k) => ({
           segmentId: k.segmentId,
           siteKey: k.siteKey,
@@ -1910,7 +1912,9 @@ async function personsOfWork(
     ...ctx.transcriptionRows.map((t) => ({
       kind: 'transcription' as const,
       id: t.id,
-      upTo: transcriptionWorking(ctx, t) ? null : (latestOf(ctx, 'transcription', t.id)?.version ?? 0),
+      upTo: transcriptionWorking(ctx, t)
+        ? null
+        : (latestOf(ctx, 'transcription', t.id)?.version ?? 0),
     })),
     ...ctx.editionRows.map((e) => ({
       kind: 'edition' as const,

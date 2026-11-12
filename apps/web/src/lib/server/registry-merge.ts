@@ -29,7 +29,7 @@ import {
   editions,
   eq,
   inArray,
-  moments,
+  versions,
   or,
   pages,
   referenceSchemes,
@@ -60,6 +60,7 @@ import type {
 } from '$lib/registry/merge';
 import { canMergeEntries, type Actor } from './authz';
 import { forgetPastVersions, rebuildSegmentIndex } from './documents/service.ts';
+import { forgetSnapshots } from './versions.ts';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Db = Database | Tx;
@@ -404,10 +405,11 @@ export async function mergeWitnesses(
       .update(editionSigla)
       .set({ witnessId: into.id })
       .where(eq(editionSigla.witnessId, from.id));
-    // A published edition's basis names its witnesses: it keeps naming the same one under its new id.
+    // A version names its witnesses: it keeps naming the same one under its new id.
     await tx.execute(
-      sql`update ${moments} set basis = replace(basis::text, ${JSON.stringify(from.id)}, ${JSON.stringify(into.id)})::jsonb where basis is not null and strpos(basis::text, ${JSON.stringify(from.id)}) > 0`,
+      sql`update ${versions} set snapshot = replace(snapshot::text, ${JSON.stringify(from.id)}, ${JSON.stringify(into.id)})::jsonb where strpos(snapshot::text, ${JSON.stringify(from.id)}) > 0`,
     );
+    forgetSnapshots();
 
     const maintainers = await newMaintainers(tx, from, into);
     await addMaintainers(tx, 'witness', from, into.id, maintainers.ids);
