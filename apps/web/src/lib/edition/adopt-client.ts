@@ -6,6 +6,7 @@ import {
   newId,
   adoptConjecture,
   adoptReading,
+  languageAtSite,
   replaceAtSite,
   siteKey,
   siteTokenIds,
@@ -111,6 +112,8 @@ export function opsForAttachment(
     return opsForDeletion(stream, segment, site, attachment.id);
   }
   if (attachment.kind === 'reported') {
+    // A reported reading's words have the language of the edition's words at the place, as a conjecture's do.
+    const lang = languageAtSite(site, segment.baseUnits);
     const tokens = attachment.text
       .split(/\s+/u)
       .filter((w) => w)
@@ -118,6 +121,7 @@ export function opsForAttachment(
         kind: 'token' as const,
         id: newId(),
         form,
+        ...(lang !== undefined ? { lang } : {}),
         source: { kind: 'editor' as const },
       }));
     return replaceAtSite(stream, site, segment.baseUnits, tokens, {

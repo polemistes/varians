@@ -534,6 +534,8 @@ export function takeCurrentOps(
   }
   const items: Token[] = parts.map((form, i) => {
     const next: Token = { kind: 'token', id: i === 0 ? token.id : ids(), form };
+    // The parts keep the language of the word they come from.
+    if (token.lang !== undefined) next.lang = token.lang;
     if (token.source) next.source = token.source;
     if (i === 0 && token.segment) next.segment = token.segment;
     return next;

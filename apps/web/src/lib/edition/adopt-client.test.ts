@@ -67,6 +67,24 @@ describe('adopt-client', () => {
     );
   });
 
+  it('gives the words of a conjecture and of a reported reading the language of the place', () => {
+    const conj: Attachment = {
+      kind: 'conjecture',
+      id: 'c1',
+      text: 'ὠκύς',
+      name: 'Bentley',
+      conjectureKind: 'substitution',
+    };
+    const reported: Attachment = { kind: 'reported', id: 'r1', text: 'ταχύς ποδ', name: 'T' };
+    const { edition, seg } = segment('ὁ βραδύς ἵππος', { B: 'ὁ ταχύς ἵππος' }, { 0: [conj] });
+    const site = seg.collation.sites[0]!;
+    for (const attachment of [conj, reported]) {
+      const next = applyOps(edition, opsForAttachment(edition, seg, site, attachment)).stream;
+      const langs = next.items.map((item) => (item.kind === 'token' ? item.lang : null));
+      expect(langs.every((lang) => lang === 'grc')).toBe(true);
+    }
+  });
+
   it('adopts a deletion by marking the words for brackets, not removing them', () => {
     const del: Attachment = {
       kind: 'conjecture',

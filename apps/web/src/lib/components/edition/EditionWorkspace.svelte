@@ -23,6 +23,8 @@
     type Stream,
   } from '@varians/core';
   import TextEditor from '$lib/components/editor/TextEditor.svelte';
+  import LanguageControl from '$lib/components/editor/LanguageControl.svelte';
+  import { EditorLanguage } from '$lib/components/editor/language.svelte';
   import type { EditorApi } from '$lib/editor/editor';
   import { DocumentSession, fetchTransport } from '$lib/editor/session';
   import {
@@ -212,7 +214,31 @@
     commit(ops, next, before);
   }
 
+  /**
+   * Made anew when the words typed are taken back (the chooser of their
+   * language cancelled): the editor then shows the text as it was.
+   */
+  let editorGeneration = $state(0);
+
+  /** The language of the words: Language above the text, and the chooser that holds a word typed where none is in force. */
+  const language = new EditorLanguage({
+    stream: () => stream,
+    api: () => api,
+    selected: () => (api?.hasRange() ? api.selectedTokens() : []),
+    pass: (ops, next) => takeEditorOps(ops, next),
+    apply: (ops) => {
+      lastAdoption = null;
+      commit(ops, applyOps(stream, ops).stream, stream);
+    },
+    rebuild: () => editorGeneration++,
+  });
+
+  /** The editor made an edit; one that brings in words without a language waits for the chooser. */
   function onEditorOps(ops: Op[], next: Stream) {
+    language.receive(ops, next);
+  }
+
+  function takeEditorOps(ops: Op[], next: Stream) {
     lastAdoption = null;
     // Letters typed over a witness's or a conjecture's word make it the editor's.
     const claims = claimTypedWords(stream, ops);
@@ -1415,6 +1441,7 @@
       {#if canEdit}
         <!-- A row of its own above the text: prose runs to the right edge, where menus laid over the text would cover it. -->
         <div class="flex shrink-0 items-center justify-end gap-1 px-3 pt-2">
+          <LanguageControl {language} align="end" />
           <Menu
             bind:open={paragraphMenuOpen}
             label={s.dialogs.paragraph.menu}
@@ -1465,22 +1492,25 @@
           {/if}
         </div>
       {/if}
-      <TextEditor
-        {stream}
-        form="written"
-        readonly={!canEdit}
-        lineNumbers={false}
-        {lineation}
-        segmentLabels={labelOf}
-        {tokenClasses}
-        {marginMarks}
-        onmarginmark={(key) => void openUnprinted(key)}
-        onops={onEditorOps}
-        onselection={onSelection}
-        onrequestsegment={(id, current) => void requestSegment(id, current)}
-        bind:api
-        class="min-h-0 flex-1 px-2"
-      />
+      {#key editorGeneration}
+        <TextEditor
+          {stream}
+          form="written"
+          readonly={!canEdit}
+          lineNumbers={false}
+          {lineation}
+          segmentLabels={labelOf}
+          {tokenClasses}
+          {marginMarks}
+          onmarginmark={(key) => void openUnprinted(key)}
+          onops={onEditorOps}
+          onselection={onSelection}
+          onrequestsegment={(id, current) => void requestSegment(id, current)}
+          onlanguage={(lang) => (language.current = lang)}
+          bind:api
+          class="min-h-0 flex-1 px-2"
+        />
+      {/key}
       {#if toolbarAt}
         <div
           class="absolute z-20 flex items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-1 font-sans text-xs shadow-pop"
