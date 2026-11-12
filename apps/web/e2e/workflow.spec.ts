@@ -24,6 +24,7 @@ import { editor } from '../src/lib/strings/editor';
 import { reader as rd } from '../src/lib/strings/reader';
 import { recordActions as actions } from '../src/lib/strings/record-actions';
 import { pageStrings as t } from '../src/lib/strings/pages';
+import { versions as vs } from '../src/lib/strings/versions';
 import { workbench as w } from '../src/lib/strings/workbench';
 import { registry as reg } from '../src/lib/strings/registry';
 
@@ -213,8 +214,8 @@ test('from a new work to a published edition and its archive', async ({ page }) 
   // Publish, in the application's window.
   await page.getByRole('button', { name: ea.publishButton, exact: true }).click();
   await page
-    .getByRole('dialog', { name: ea.publishTitle })
-    .getByRole('button', { name: ea.publishVerb, exact: true })
+    .getByRole('dialog', { name: vs.publish.edition })
+    .getByRole('button', { name: vs.publish.verb, exact: true })
     .click();
   await expect(page.getByText(/Published as version 1/)).toBeVisible({ timeout: 15_000 });
 

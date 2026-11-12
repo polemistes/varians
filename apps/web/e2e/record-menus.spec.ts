@@ -76,6 +76,8 @@ const LINES: Record<string, string> = {
 /** The menu of a transcript, for its owner, wherever it stands. */
 const TRANSCRIPTION_MENU = [
   ra.transcription.settings,
+  ra.transcription.publish,
+  ra.transcription.withdraw,
   ra.transcription.copy,
   ra.transcription.tei,
   ra.transcription.leiden,
@@ -646,7 +648,7 @@ test('Settings and Make a Copy from a list open the workbench with their window'
   expect(errors).toEqual([]);
 });
 
-test('a transcript is deleted from a list through the window; one an edition names is refused in it', async ({
+test('a transcript is deleted from a list through the window; one with a version is refused in it', async ({
   page,
 }) => {
   const errors = watch(page);
@@ -654,14 +656,14 @@ test('a transcript is deleted from a list through the window; one an edition nam
   await page.goto('/mine');
   await page.waitForLoadState('networkidle');
 
-  // Book 1 stands behind a siglum of two editions: the window says so.
+  // Book 1 has a version, published with an edition that compares it: the window says so.
   const book = page.locator('main li').filter({ hasText: BOOK });
   await book.getByRole('button', { name: ra.menuOf(BOOK) }).click();
   await page.getByRole('menuitem', { name: ra.transcription.delete }).click();
   const window = page.getByRole('dialog', { name: ra.transcription.deleteTitle });
   await expect(window).toContainText(ra.transcription.deleteBody);
   await window.getByRole('button', { name: ra.transcription.deleteVerb, exact: true }).click();
-  await expect(window.getByRole('alert')).toContainText(DRAFT.title);
+  await expect(window.getByRole('alert')).toContainText(ra.transcription.hasVersion);
   await window.getByRole('button', { name: ra.cancel }).click();
   expect(
     await db.select().from(transcriptions).where(eq(transcriptions.id, ids.book!)),

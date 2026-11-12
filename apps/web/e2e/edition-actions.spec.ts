@@ -29,6 +29,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { s } from '../src/lib/strings/en';
 import { recordActions } from '../src/lib/strings/record-actions';
 import { site } from '../src/lib/strings/site';
+import { versions as vs } from '../src/lib/strings/versions';
 import { replaceContent } from '../src/lib/server/documents/service.ts';
 import { publishTranscription } from '../src/lib/server/publish.ts';
 import { DEFAULT_CONVENTIONS } from '../src/lib/server/seed/sample.ts';
@@ -56,7 +57,7 @@ const LINES: Record<string, string> = {
 };
 
 /** Every item of an edition's menu for its owner, in order, on a page other than Edition Settings. */
-const OWNER_MENU = [ea.settings, ea.publish, ea.unpublish, ea.copy, ea.tei, ea.package, ea.delete];
+const OWNER_MENU = [ea.settings, ea.publish, ea.withdraw, ea.copy, ea.tei, ea.package, ea.delete];
 const READER_MENU = [ea.copy, ea.tei, ea.package];
 
 let db: Database;
@@ -183,12 +184,14 @@ function watch(page: Page): string[] {
   return errors;
 }
 
-/** The menu's items, in order, opened from `trigger` and closed again. */
+/** The menu's items, in order, opened from `trigger` and closed again; a disabled item's reason left out. */
 async function menuOf(page: Page, trigger: Locator): Promise<string[]> {
   await trigger.click();
   const menu = page.getByRole('menu');
   await expect(menu).toBeVisible();
-  const items = (await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim());
+  const items = (await menu.getByRole('menuitem').allInnerTexts()).map(
+    (t) => t.trim().split('\n')[0]!,
+  );
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
   return items;
@@ -208,12 +211,12 @@ test('publishes an edition from Your Work through the application window', async
   const row = rowOf(page, PUBLISHED.title);
   await row.getByRole('button', { name: recordActions.menuOf(PUBLISHED.title) }).click();
   await page.getByRole('menuitem', { name: ea.publish }).click();
-  const window = page.getByRole('dialog', { name: ea.publishTitle });
-  await expect(window).toContainText(ea.publishBody);
-  await window.getByRole('button', { name: ea.publishVerb, exact: true }).click();
-  await expect(page.getByText(ea.published(1))).toBeVisible({ timeout: 15_000 });
+  const window = page.getByRole('dialog', { name: vs.publish.edition });
+  await expect(window).toContainText(vs.publish.body('edition', 1));
+  await window.getByRole('button', { name: vs.publish.verb, exact: true }).click();
+  await expect(page.getByText(vs.publish.done(1))).toBeVisible({ timeout: 15_000 });
   await expect(window).toBeHidden();
-  await expect(row.getByText(site.home.published)).toBeVisible();
+  await expect(row.getByText(vs.version(1), { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/mine$/);
   expect(errors).toEqual([]);
 });
@@ -278,7 +281,7 @@ test('the menu has the same items in the same order on a card, in the reader, in
   const bar = page.locator('.reader-bar');
   await expect(bar.getByRole('link', { name: ea.edit, exact: true })).toBeVisible();
   await expect(bar.getByRole('link', { name: ea.read, exact: true })).toHaveCount(0);
-  await expect(bar.getByRole('button', { name: 'Versions' })).toBeVisible();
+  await expect(bar.getByRole('button', { name: vs.menu.label })).toBeVisible();
   await page.screenshot({
     path: `${SHOTS}/3-reader-bar.png`,
     clip: { x: 0, y: 0, width: 1500, height: 260 },
