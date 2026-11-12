@@ -560,7 +560,6 @@ async function makeTranscripts(s: Seeding, longHistory: number): Promise<string[
       name: `${w.name}, the stress transcript`,
       ownerId,
       keepsWrittenForm: w.keepsWrittenForm,
-      visibility: 'draft',
     });
     const plan = streamOf(
       w,

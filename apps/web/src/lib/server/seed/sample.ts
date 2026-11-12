@@ -38,6 +38,7 @@ import { reviewSite } from '../conjectures.ts';
 import { setSiteKind } from '../collation.ts';
 import { nameMoment, replaceContent } from '../documents/service.ts';
 import { setReviewFrom } from '../history.ts';
+import { publishTranscription } from '../publish.ts';
 import { addNote } from '../notes.ts';
 import { createZones } from '../zones.ts';
 import { resolveLabels, schemeOfWork } from '../segments.ts';
@@ -361,6 +362,9 @@ export async function seedSample(
   await setReviewFrom(db, 'edition', editionId, ownerId, 1);
   await setReviewFrom(db, 'transcription', aTranscription, ownerId, 1);
   await nameMoment(db, 'edition', editionId, 1, 'Collated against A, B and C', ownerId);
+  // The transcripts are published, as versions of their own; the edition is left a draft.
+  for (const id of [aTranscription, bTranscription, cTranscription])
+    await publishTranscription(db, id, ownerId);
   if (options.collaboratorId)
     await db
       .insert(editionCollaborators)
@@ -421,7 +425,7 @@ async function transcription(
   const id = newId();
   await db
     .insert(transcriptions)
-    .values({ id, witnessId, name, ownerId, keepsWrittenForm, visibility: 'published' });
+    .values({ id, witnessId, name, ownerId, keepsWrittenForm });
   await replaceContent(db, 'transcription', id, ownerId, 0, content, 'seed');
   return id;
 }

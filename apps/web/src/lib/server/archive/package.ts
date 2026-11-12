@@ -11,11 +11,10 @@ import { licenceInfo, orcidUrl } from '@varians/core';
 import {
   editionSigla,
   editions,
-  moments,
   transcriptions,
   works,
   type Database,
-  type MomentBasis,
+  type EditionSnapshot,
 } from '@varians/db';
 import { ZipArchive } from 'archiver';
 import yauzl from 'yauzl';
@@ -25,12 +24,13 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Actor } from '../authz.ts';
 import { dataLicence, siteName } from '../settings.ts';
 import { FORMAT_BASE, FORMAT_VERSION, writeArchive, type ArchiveFilter } from './archive.ts';
 import { worksOfDocument } from './commits.ts';
 import { viewerFilter } from './viewer.ts';
+import { hasVersionSql, latestVersionWithSnapshot } from '../versions.ts';
 
 export type PackageScope =
   | { kind: 'work'; workId: string }
@@ -60,8 +60,8 @@ function union(a: ArchiveFilter, b: ArchiveFilter): ArchiveFilter {
     transcription: (r) => a.transcription(r) || b.transcription(r),
     edition: (r) => a.edition(r) || b.edition(r),
     editionWorking: (r) => a.editionWorking(r) || b.editionWorking(r),
+    transcriptionWorking: (r) => a.transcriptionWorking(r) || b.transcriptionWorking(r),
     records: a.records || b.records,
-    transcriptionVersion: (r) => a.transcriptionVersion?.(r) ?? b.transcriptionVersion?.(r) ?? null,
   };
 }
 
@@ -89,14 +89,17 @@ export async function scopeFilters(
       continue;
     }
     if (scope.kind === 'edition') {
-      const [edition] = await db.select().from(editions).where(eq(editions.id, scope.editionId));
-      if (!edition) continue;
+      const [row] = await db
+        .select({ edition: editions, hasVersion: hasVersionSql('edition', editions.id) })
+        .from(editions)
+        .where(eq(editions.id, scope.editionId));
+      if (!row) continue;
+      const edition = { ...row.edition, hasVersion: row.hasVersion };
       if (!base.edition(edition)) continue;
       const working = base.editionWorking(edition);
-      // The transcriptions the conspectus names: as it stands for those who edit the edition, as published for others, at the versions the apparatus was collated against.
+      // The transcriptions the conspectus names: as it stands for those who edit the edition, as its latest version names them for others, whose directories hold that version among theirs.
       let named: Set<string>;
-      let versions: Record<string, number> = {};
-      if (working || edition.publishedVersion === null) {
+      if (working) {
         named = new Set(
           (
             await db
@@ -108,46 +111,34 @@ export async function scopeFilters(
             .filter((id): id is string => id !== null),
         );
       } else {
-        const [published] = await db
-          .select({ basis: moments.basis })
-          .from(moments)
-          .where(
-            and(
-              eq(moments.documentKind, 'edition'),
-              eq(moments.documentId, edition.id),
-              eq(moments.kind, 'published'),
-              eq(moments.version, edition.publishedVersion),
-            ),
-          )
-          .orderBy(desc(moments.at))
-          .limit(1);
-        const basis = published?.basis as MomentBasis | null | undefined;
+        const latest = await latestVersionWithSnapshot(db, 'edition', edition.id);
         named = new Set(
-          (basis?.sigla ?? []).map((s) => s.transcriptionId).filter((id): id is string => !!id),
+          Object.keys((latest?.snapshot as EditionSnapshot | undefined)?.witnessVersions ?? {}),
         );
-        versions = basis?.versions ?? {};
       }
       add(edition.workId, {
         transcription: (r) => named.has(r.id) && base.transcription(r),
         edition: (r) => r.id === edition.id && base.edition(r),
         editionWorking: base.editionWorking,
+        transcriptionWorking: base.transcriptionWorking,
         records: base.records,
-        transcriptionVersion: (r) => (working ? null : (versions[r.id] ?? null)),
       });
       continue;
     }
     // A transcription, with its works' own files, its witness and pages.
-    const [t] = await db
-      .select()
+    const [row] = await db
+      .select({ t: transcriptions, hasVersion: hasVersionSql('transcription', transcriptions.id) })
       .from(transcriptions)
       .where(eq(transcriptions.id, scope.transcriptionId));
-    if (!t) continue;
+    if (!row) continue;
+    const t = { ...row.t, hasVersion: row.hasVersion };
     for (const workId of await worksOfDocument(db, 'transcription', t.id)) {
       if (!base.transcription(t)) continue;
       add(workId, {
         transcription: (r) => r.id === t.id && base.transcription(r),
         edition: NOTHING,
         editionWorking: NOTHING,
+        transcriptionWorking: base.transcriptionWorking,
         records: false,
       });
     }

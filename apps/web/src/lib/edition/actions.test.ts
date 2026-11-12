@@ -26,7 +26,6 @@ describe('the menu of an edition', () => {
       'settings',
       '|',
       'publish',
-      'unpublish',
       '|',
       'copy',
       '|',
@@ -37,7 +36,6 @@ describe('the menu of an edition', () => {
     expect(menu.map((m) => ('label' in m ? m.label : null)).filter(Boolean)).toEqual([
       'Edition Settings',
       'Publish…',
-      'Unpublish…',
       'Make a Copy…',
       'Download',
       'TEI XML',
@@ -46,7 +44,7 @@ describe('the menu of an edition', () => {
     ]);
   });
 
-  it('offers no Unpublish for a draft', () => {
+  it('offers Publish… for a draft as for an edition with a version', () => {
     expect(shape(editionActions(draft, owner, 'list').menu)).toEqual([
       'settings',
       '|',

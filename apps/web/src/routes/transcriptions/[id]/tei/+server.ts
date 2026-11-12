@@ -23,7 +23,13 @@ function fileName(name: string): string {
 export const GET: RequestHandler = async ({ locals, params, url }) => {
   const access = await loadTranscriptionAccess(locals.db, locals.user, params.id);
   if (!access || !access.canView) throw error(404, t.errors.notFound);
-  const exported = await exportTei(locals.db, access.transcription.id, url.origin);
+  // Those who may not edit the transcription download its latest version.
+  const exported = await exportTei(
+    locals.db,
+    access.transcription.id,
+    url.origin,
+    access.canEdit,
+  );
   if (!exported) throw error(404, t.errors.notFound);
   const name = fileName(exported.name);
   return new Response(exported.xml, {

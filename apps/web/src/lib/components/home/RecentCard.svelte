@@ -14,7 +14,7 @@
 
   type Common = {
     id: string;
-    visibility: 'draft' | 'published';
+    latestVersion: number | null;
     updatedAt: string;
     shared: boolean;
   };
@@ -47,7 +47,7 @@
 {#snippet head(kind: string)}
   <span class="flex flex-wrap items-center gap-2 font-sans text-xs text-ink-muted">
     <span class="font-medium tracking-[0.08em] uppercase">{kind}</span>
-    {#if item.visibility === 'published'}<Badge tone="success">{t.published}</Badge>{/if}
+    {#if item.latestVersion !== null}<Badge tone="success">{t.published}</Badge>{/if}
     {#if item.shared}<span>{t.shared}</span>{/if}
   </span>
 {/snippet}
@@ -75,7 +75,7 @@
         id: item.id,
         slug: item.slug,
         title: item.title,
-        published: item.visibility === 'published',
+        published: item.latestVersion !== null,
       }}
       rights={item.can}
       place="list"

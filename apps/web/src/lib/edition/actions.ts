@@ -86,7 +86,6 @@ export function editionActions(
   const publishing: MenuEntry[] = [];
   if (rights.publish) {
     publishing.push({ kind: 'action', id: 'publish', label: t.publish });
-    if (edition.published) publishing.push({ kind: 'action', id: 'unpublish', label: t.unpublish });
   }
   const copying: MenuEntry[] =
     rights.signedIn && (rights.edit || edition.published)

@@ -19,7 +19,7 @@
       id: edition.id,
       slug: edition.slug,
       title: edition.title,
-      published: edition.visibility === 'published',
+      published: edition.latestVersion !== null,
     }}
     rights={edition.can}
     place="list"
@@ -44,7 +44,7 @@
           subtitle={h.editionOf(edition.workTitle)}
           subtitleHref="/works/{edition.workSlug}"
           date={edition.updatedAt}
-          badge={edition.visibility === 'published' ? h.published : h.draft}
+          badge={edition.latestVersion !== null ? h.published : h.draft}
         >
           {#snippet actions()}{@render editionActions(edition)}{/snippet}
         </RecordRow>
@@ -62,7 +62,7 @@
           subtitle={h.transcriptionOf(transcription.witnessName)}
           subtitleHref="/witnesses/{transcription.witnessSlug}"
           date={transcription.updatedAt}
-          badge={transcription.visibility === 'published' ? h.published : h.draft}
+          badge={transcription.latestVersion !== null ? h.published : h.draft}
         >
           {#snippet actions()}{@render transcriptionActions(transcription)}{/snippet}
         </RecordRow>

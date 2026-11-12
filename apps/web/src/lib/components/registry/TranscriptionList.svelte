@@ -44,7 +44,7 @@
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
-        {#if item.visibility === 'draft'}<Badge>{s.draft}</Badge>{/if}
+        {#if item.latestVersion === null}<Badge>{s.draft}</Badge>{/if}
         <!-- A row without a menu keeps its room, so that the badges stand in line. -->
         <div class="w-8 shrink-0">
           <TranscriptionActions transcription={item} rights={item.can} place="list" />

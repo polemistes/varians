@@ -192,6 +192,17 @@ export function witnessRightsFromGrants(
   );
 }
 
+/**
+ * What a record says of its versions, as its query gives it: whether it has
+ * one that is not withdrawn, or the number of the latest such (null for none).
+ */
+export type Versioned = { hasVersion: boolean } | { latestVersion: number | null };
+
+/** Whether a record has a version that is not withdrawn, which makes it public. */
+export function hasPublicVersion(record: Versioned): boolean {
+  return 'hasVersion' in record ? record.hasVersion : record.latestVersion !== null;
+}
+
 // Transcriptions
 
 export function canEditTranscription(
@@ -214,10 +225,10 @@ export function canEditTranscription(
  */
 export function canViewTranscription(
   user: Maybe<Actor>,
-  transcription: Pick<Transcription, 'id' | 'ownerId'> & { hasVersion: boolean },
+  transcription: Pick<Transcription, 'id' | 'ownerId'> & Versioned,
   grants: Grants,
 ): boolean {
-  if (transcription.hasVersion) return true;
+  if (hasPublicVersion(transcription)) return true;
   return canEditTranscription(user, transcription, grants);
 }
 
@@ -265,10 +276,10 @@ export function canEditEdition(
 /** An edition with a version that is not withdrawn is seen by everyone (its versions); otherwise by those who may edit it. */
 export function canViewEdition(
   user: Maybe<Actor>,
-  edition: Pick<Edition, 'id' | 'ownerId'> & { hasVersion: boolean },
+  edition: Pick<Edition, 'id' | 'ownerId'> & Versioned,
   collaboratorIds: Iterable<string>,
 ): boolean {
-  if (edition.hasVersion) return true;
+  if (hasPublicVersion(edition)) return true;
   return canEditEdition(user, edition, collaboratorIds);
 }
 

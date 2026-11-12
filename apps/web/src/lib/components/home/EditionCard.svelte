@@ -17,11 +17,11 @@
     workTitle: string;
     workAuthor: string | null;
     editors: string[];
-    visibility: 'draft' | 'published';
+    latestVersion: number | null;
     can: EditionRights;
   }
 
-  let { id, slug, title, workTitle, workAuthor, editors, visibility, can }: Props = $props();
+  let { id, slug, title, workTitle, workAuthor, editors, latestVersion, can }: Props = $props();
 </script>
 
 <article
@@ -42,7 +42,7 @@
     >{/if}
   {#if can.edit}
     <EditionActions
-      edition={{ id, slug, title, published: visibility === 'published' }}
+      edition={{ id, slug, title, published: latestVersion !== null }}
       rights={can}
       place="list"
       class="relative z-10 mt-auto justify-end pt-3"

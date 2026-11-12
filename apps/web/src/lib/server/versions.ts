@@ -46,6 +46,13 @@ export function hasVersionSql(kind: DocumentKind, column: AnyPgColumn) {
   return sql<boolean>`exists (select 1 from ${versions} where ${versions.documentKind} = ${kind} and ${versions.documentId} = ${column} and ${versions.withdrawnAt} is null)`;
 }
 
+/** The number of the latest version of the record in `column` that is not withdrawn, or null: one subquery, for the lists. */
+export function latestVersionSql(kind: DocumentKind, column: AnyPgColumn) {
+  return sql<
+    number | null
+  >`(select max(${versions.number}) from ${versions} where ${versions.documentKind} = ${kind} and ${versions.documentId} = ${column} and ${versions.withdrawnAt} is null)`;
+}
+
 /** Whether a record has a version that is not withdrawn. */
 export async function hasVersion(
   db: Database,

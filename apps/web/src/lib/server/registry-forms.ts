@@ -17,7 +17,14 @@ import {
   type FieldErrors,
 } from '$lib/registry/forms';
 import { registry as t } from '$lib/strings/registry';
-import { canCreateRegistryEntry, canViewTranscription, grantsFor, type Actor } from './authz.ts';
+import {
+  canCreateRegistryEntry,
+  canEditTranscription,
+  canViewTranscription,
+  grantsFor,
+  type Actor,
+} from './authz.ts';
+import { hasVersionSql } from './versions.ts';
 import { createTranscription, createWitness, createWork, RegistryError } from './registry.ts';
 import type { Database } from '@varians/db';
 
@@ -108,11 +115,15 @@ export async function transcriptionFromForm(
   if (!parsed.ok) return { ok: false, status: 400, errors: parsed.errors, values: parsed.values };
   const d = parsed.data;
   const grants = await grantsFor(db, user);
+  // One who may not edit the transcript started from copies its latest version.
+  let fromLatestVersion = false;
   if (d.fromTranscriptionId) {
-    const [source] = await db
-      .select()
+    const [row] = await db
+      .select({ t: transcriptions, hasVersion: hasVersionSql('transcription', transcriptions.id) })
       .from(transcriptions)
       .where(eq(transcriptions.id, d.fromTranscriptionId));
+    const source = row ? { ...row.t, hasVersion: row.hasVersion } : null;
+    fromLatestVersion = !!source && !canEditTranscription(user, source, grants);
     if (!source || !canViewTranscription(user, source, grants))
       return {
         ok: false,
@@ -128,6 +139,7 @@ export async function transcriptionFromForm(
         name: d.name,
         keepsWrittenForm: d.keepsWrittenForm,
         fromTranscriptionId: d.fromTranscriptionId,
+        fromLatestVersion,
       },
       user.id,
     );

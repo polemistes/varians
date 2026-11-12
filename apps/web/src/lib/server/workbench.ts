@@ -38,6 +38,7 @@ import {
   type Op,
   type Stream,
   type UnitMapping,
+  type ZoneGeometry,
 } from '@varians/core';
 import {
   changesets,
@@ -54,7 +55,7 @@ import {
   zones,
   type Database,
   type WitnessHand,
-  type Visibility,
+  type TranscriptionSnapshot,
 } from '@varians/db';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { workbench as strings } from '$lib/strings/workbench';
@@ -70,6 +71,7 @@ import { previewTei } from './import/tei.ts';
 import { LanguageMissing, withLanguage } from './import/language.ts';
 import { resolveLabels, schemeOfWork } from './segments.ts';
 import { loadTranscriptionAccess } from './transcription-access.ts';
+import { latestVersionWithSnapshot, versionByNumber, versionsOf } from './versions.ts';
 import { worksOfTranscription } from './transcription-works.ts';
 import { grantsFor } from './authz.ts';
 import { candidateWitnesses, editionsOfWork } from './editions.ts';
@@ -130,7 +132,10 @@ export interface WorkbenchData {
     keepsWrittenForm: boolean;
     displayAsWritten: boolean;
     memory: MemoryEntry[];
-    visibility: Visibility;
+    /** The number of the latest version that is not withdrawn; null while there is none. */
+    latestVersion: number | null;
+    /** The number of the version shown, read only; null for the draft. */
+    shownVersion: number | null;
     sources: string | null;
     rightsNote: string | null;
     /** The licence fixed at publication, by name, and the installation's, which publication would give. */
@@ -157,15 +162,45 @@ export interface WorkbenchData {
   canMaintainWitness: boolean;
 }
 
-/** Everything the workbench page needs, or null when the transcription does not exist or may not be viewed. */
+/**
+ * Everything the workbench page needs, or null when the transcription does
+ * not exist or may not be viewed. Those who may edit it see the draft; others
+ * its latest version that is not withdrawn, read only. Version `number`, when
+ * asked for, is shown read only to anyone, unless it is withdrawn.
+ */
 export async function loadWorkbench(
   db: Database,
   user: Actor | null,
   id: string,
+  number: number | null = null,
 ): Promise<WorkbenchData | null> {
   const access = await loadTranscriptionAccess(db, user, id);
-  if (!access || !access.canView) return null;
-  const { transcription, witness } = access;
+  if (!access) return null;
+  const all = await versionsOf(db, 'transcription', id);
+  const latest = all.find((v) => !v.withdrawn) ?? null;
+  const asked = number === null ? null : (all.find((v) => v.number === number) ?? null);
+  if (number !== null && (!asked || asked.withdrawn)) return null;
+  if (number === null && !access.canView) return null;
+  const shownNumber = asked?.number ?? (access.canEdit ? null : (latest?.number ?? null));
+  const shown =
+    shownNumber === null ? null : await versionByNumber(db, 'transcription', id, shownNumber);
+  const draft = access.transcription;
+  const snapshot = shown ? (shown.snapshot as TranscriptionSnapshot) : null;
+  const transcription = snapshot
+    ? {
+        ...draft,
+        name: snapshot.name,
+        version: shown!.version,
+        content: snapshot.content,
+        keepsWrittenForm: snapshot.keepsWrittenForm,
+        displayAsWritten: snapshot.displayAsWritten,
+        memory: [],
+        sources: snapshot.sources,
+        rightsNote: snapshot.rightsNote,
+        licenceId: snapshot.licenceId,
+      }
+    : draft;
+  const { witness } = access;
   const pageRows = await witnessPages(db, witness.id);
   const named = segmentIds(transcription.content);
   const segmentRows = named.length
@@ -192,7 +227,8 @@ export async function loadWorkbench(
       keepsWrittenForm: transcription.keepsWrittenForm,
       displayAsWritten: transcription.displayAsWritten,
       memory: transcription.memory,
-      visibility: transcription.visibility,
+      latestVersion: latest?.number ?? null,
+      shownVersion: shownNumber,
       sources: transcription.sources,
       rightsNote: transcription.rightsNote,
       licence: licenceInfo(transcription.licenceId)?.name ?? null,
@@ -211,7 +247,8 @@ export async function loadWorkbench(
     segments: Object.fromEntries(
       segmentRows.map((s) => [s.id, { label: s.label, workId: s.workId }]),
     ),
-    canEdit: access.canEdit,
+    // A version is read only, to its editors too.
+    canEdit: access.canEdit && shownNumber === null,
     canDelete: access.canDelete,
     canMaintainWitness: canMaintainWitness(
       user,
@@ -865,11 +902,9 @@ export async function importLayoutInto(
 export async function exportLeidenPlus(
   db: Database,
   transcriptionId: string,
+  draft = true,
 ): Promise<{ text: string; name: string } | null> {
-  const [row] = await db
-    .select()
-    .from(transcriptions)
-    .where(eq(transcriptions.id, transcriptionId));
+  const row = await shownTranscription(db, transcriptionId, draft);
   if (!row) return null;
   const pageRows = await witnessPages(db, row.witnessId);
   // The head names the language most of the words have, and a run in another language says its own.
@@ -879,6 +914,37 @@ export async function exportLeidenPlus(
   return { text, name: row.name };
 }
 
+/**
+ * A transcription as a download gives it: its draft, for those who may edit
+ * it, or else its latest version that is not withdrawn, from its snapshot;
+ * null when there is neither.
+ */
+async function shownTranscription(
+  db: Database,
+  transcriptionId: string,
+  draft: boolean,
+): Promise<{
+  name: string;
+  witnessId: string;
+  content: Stream;
+  keepsWrittenForm: boolean;
+  sources: string | null;
+  rightsNote: string | null;
+  zones: { id: string; pageId: string; tokenIds: string[]; geometry: ZoneGeometry }[];
+} | null> {
+  if (draft) {
+    const [row] = await db
+      .select()
+      .from(transcriptions)
+      .where(eq(transcriptions.id, transcriptionId));
+    return row ? { ...row, zones: await zonesOf(db, transcriptionId) } : null;
+  }
+  const latest = await latestVersionWithSnapshot(db, 'transcription', transcriptionId);
+  if (!latest) return null;
+  const snapshot = latest.snapshot as TranscriptionSnapshot;
+  return { ...snapshot, zones: snapshot.zones };
+}
+
 // TEI export
 
 /** The transcription as a TEI document with the witness, the pages and zones, and the segment labels. */
@@ -886,17 +952,15 @@ export async function exportTei(
   db: Database,
   transcriptionId: string,
   origin: string,
+  draft = true,
 ): Promise<{ xml: string; name: string } | null> {
-  const [row] = await db
-    .select()
-    .from(transcriptions)
-    .where(eq(transcriptions.id, transcriptionId));
+  const row = await shownTranscription(db, transcriptionId, draft);
   if (!row) return null;
   const witness = await db.query.witnesses.findFirst({
     where: (w, { eq }) => eq(w.id, row.witnessId),
   });
   const pageRows = await witnessPages(db, row.witnessId);
-  const zoneRows = await zonesOf(db, transcriptionId);
+  const zoneRows = row.zones;
   const named = segmentIds(row.content);
   const labels = named.length
     ? await db

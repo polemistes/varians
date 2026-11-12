@@ -9,6 +9,7 @@ import { buildPackage } from '$lib/server/archive/package';
 import { canViewTranscription, grantsFor } from '$lib/server/authz';
 import { PACKAGE_AGENT, packageOrigin, packageResponse } from '$lib/server/package-response';
 import { limits } from '$lib/server/rate-limit';
+import { hasVersionSql } from '$lib/server/versions';
 import { storageRoot } from '$lib/server/startup';
 import { registry as t } from '$lib/strings/registry';
 import type { RequestHandler } from './$types';
@@ -18,7 +19,7 @@ export const GET: RequestHandler = async ({ locals, params, url, getClientAddres
     .select({
       id: transcriptions.id,
       ownerId: transcriptions.ownerId,
-      visibility: transcriptions.visibility,
+      hasVersion: hasVersionSql('transcription', transcriptions.id),
     })
     .from(transcriptions)
     .where(eq(transcriptions.id, params.id));

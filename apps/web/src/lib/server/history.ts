@@ -40,6 +40,7 @@ import {
   segments,
   sql,
   users,
+  versions,
   type ChangesetRow,
   type Database,
   type DocumentKind,
@@ -164,7 +165,10 @@ function personName(people: Record<string, string>, userId: string | null | unde
   return (userId && people[userId]) || historyStrings.unknownPerson;
 }
 
-function toMoment(row: Moment, people: Record<string, string>): HistoryMoment {
+/** A moment with the number of the version it marks, if it marks one. */
+type MomentRow = Moment & { number: number | null };
+
+function toMoment(row: MomentRow, people: Record<string, string>): HistoryMoment {
   return {
     id: row.id,
     version: row.version,
@@ -178,12 +182,18 @@ function toMoment(row: Moment, people: Record<string, string>): HistoryMoment {
   };
 }
 
-async function momentRows(db: Database, kind: DocumentKind, documentId: string): Promise<Moment[]> {
-  return db
-    .select()
+async function momentRows(
+  db: Database,
+  kind: DocumentKind,
+  documentId: string,
+): Promise<MomentRow[]> {
+  const rows = await db
+    .select({ moment: moments, number: versions.number })
     .from(moments)
+    .leftJoin(versions, eq(versions.momentId, moments.id))
     .where(and(eq(moments.documentKind, kind), eq(moments.documentId, documentId)))
     .orderBy(desc(moments.version), desc(moments.at));
+  return rows.map((r) => ({ ...r.moment, number: r.number }));
 }
 
 /** The named moments of a document, newest first. */
@@ -389,7 +399,7 @@ export async function addMoment(
   if (!trimmed) throw new HistoryError(400, 'A moment needs a name');
   const id = await nameMoment(db, kind, documentId, version, trimmed, userId, 'named');
   const [row] = await db.select().from(moments).where(eq(moments.id, id));
-  return toMoment(row!, await namesOf(db, [userId]));
+  return toMoment({ ...row!, number: null }, await namesOf(db, [userId]));
 }
 
 export interface RevertOptions {

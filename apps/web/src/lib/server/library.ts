@@ -32,6 +32,7 @@ import {
   type Grants,
 } from './authz';
 import { identifierMatches } from './identifier-search.ts';
+import { hasVersionSql, latestVersionSql } from './versions.ts';
 
 export interface EditionRow {
   id: string;
@@ -43,7 +44,8 @@ export interface EditionRow {
   editors: string[];
   ownerId: string;
   ownerName: string;
-  visibility: 'draft' | 'published';
+  /** The number of its latest version that is not withdrawn; null while it has none. */
+  latestVersion: number | null;
   updatedAt: string;
 }
 
@@ -62,7 +64,8 @@ export interface TranscriptionRow {
   witnessName: string;
   witnessSlug: string;
   ownerName: string;
-  visibility: 'draft' | 'published';
+  /** The number of its latest version that is not withdrawn; null while it has none. */
+  latestVersion: number | null;
   updatedAt: string;
 }
 
@@ -134,7 +137,7 @@ function editionColumns() {
     editors: editions.editors,
     ownerId: editions.ownerId,
     ownerName: owner.name,
-    visibility: editions.visibility,
+    latestVersion: latestVersionSql('edition', editions.id),
     updatedAt: editions.updatedAt,
   };
 }
@@ -147,7 +150,7 @@ function transcriptionColumns() {
     witnessName: witnesses.name,
     witnessSlug: witnesses.slug,
     ownerName: owner.name,
-    visibility: transcriptions.visibility,
+    latestVersion: latestVersionSql('transcription', transcriptions.id),
     updatedAt: transcriptions.updatedAt,
   };
 }
@@ -286,9 +289,9 @@ export function withWitnessRights(
   }));
 }
 
-/** Published editions. A draft is listed only to those who may edit it, on their own pages. */
+/** Editions with a version that is not withdrawn. One with none is listed only to those who may edit it, on their own pages. */
 export function publishedEditions(db: Database): Promise<EditionRow[]> {
-  return selectEditions(db, eq(editions.visibility, 'published'));
+  return selectEditions(db, hasVersionSql('edition', editions.id));
 }
 
 export function editionsOwnedBy(db: Database, userId: string): Promise<EditionRow[]> {
@@ -321,13 +324,13 @@ export async function sharedWith(
   return { editions: sharedEditions, transcriptions: sharedTranscriptions };
 }
 
-/** Published editions matching a query on the edition's title, the work's title or its author. */
+/** Editions with a version matching a query on the edition's title, the work's title or its author. */
 export function searchPublishedEditions(db: Database, query: string): Promise<EditionRow[]> {
   const pattern = query.trim() ? likePattern(query) : null;
   const matches = pattern
     ? or(ilike(editions.title, pattern), ilike(works.title, pattern), ilike(works.author, pattern))
     : undefined;
-  return selectEditions(db, and(eq(editions.visibility, 'published'), matches));
+  return selectEditions(db, and(hasVersionSql('edition', editions.id), matches));
 }
 
 export type RecentItem =

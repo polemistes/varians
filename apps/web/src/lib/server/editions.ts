@@ -19,6 +19,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { draftsOf, settleGroups, type GroupDraft, type GroupProblem } from '../edition/groups.ts';
 import { replaceContent } from './documents/service.ts';
 import { canViewTranscription, type Actor, type Grants, type Maybe } from './authz.ts';
+import { hasVersionSql } from './versions.ts';
 import { DEFAULT_CONVENTIONS } from './seed/sample.ts';
 
 export interface NewEdition {
@@ -158,7 +159,7 @@ export async function candidateWitnesses(
       witnessId: witnesses.id,
       witnessName: witnesses.name,
       siglum: witnesses.siglum,
-      visibility: transcriptions.visibility,
+      hasVersion: hasVersionSql('transcription', transcriptions.id),
       ownerId: transcriptions.ownerId,
     })
     .from(transcriptions)
@@ -169,11 +170,11 @@ export async function candidateWitnesses(
     .filter((t) =>
       canViewTranscription(
         viewer,
-        { id: t.transcriptionId, ownerId: t.ownerId, visibility: t.visibility },
+        { id: t.transcriptionId, ownerId: t.ownerId, hasVersion: t.hasVersion },
         grants,
       ),
     )
-    .map(({ visibility: _visibility, ownerId: _ownerId, ...t }) => ({
+    .map(({ hasVersion: _hasVersion, ownerId: _ownerId, ...t }) => ({
       ...t,
       segments: counts.get(t.transcriptionId)?.size ?? 0,
     }));

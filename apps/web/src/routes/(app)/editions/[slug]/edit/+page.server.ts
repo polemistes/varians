@@ -13,7 +13,7 @@ import {
   suggestedWitnesses,
 } from '$lib/server/edition-form';
 import { requireUser } from '$lib/server/guards';
-import { publishedVersions } from '$lib/server/publish';
+import { versionsOf } from '$lib/server/versions';
 import { editionView, type SegmentView } from '$lib/server/reader';
 import { deleteHistory, viewableTranscriptions } from '$lib/server/registry';
 import { OPENING_SEGMENTS } from '$lib/edition/workspace';
@@ -58,6 +58,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     ]),
   );
   const grants = await grantsFor(locals.db, user);
+  const versions = await versionsOf(locals.db, 'edition', edition.id);
   const conspectus = await editionConspectus(locals.db, user, grants, edition);
   const revision = createHash('sha1')
     .update(
@@ -80,8 +81,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
       id: edition.id,
       slug: edition.slug,
       title: edition.title,
-      visibility: edition.visibility,
-      publishedVersion: edition.publishedVersion,
+      /** The number of the latest version that is not withdrawn; null while there is none. */
+      latestVersion: versions.find((v) => !v.withdrawn)?.number ?? null,
       conventions: edition.conventions,
     },
     work: { id: edition.workId, slug: work?.slug ?? '', title: work?.title ?? '' },
@@ -89,7 +90,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     conspectus,
     suggestions: await suggestedWitnesses(locals.db, user, grants, edition.workId),
     sources: await viewableTranscriptions(locals.db, user, grants),
-    versions: await publishedVersions(locals.db, edition.id),
+    versions: versions.map((v) => ({
+      number: v.number,
+      at: v.at.toISOString(),
+      note: v.note,
+      withdrawn: v.withdrawn !== null,
+    })),
     rights: editionRights(user, edition, access.collaboratorIds),
   };
 };

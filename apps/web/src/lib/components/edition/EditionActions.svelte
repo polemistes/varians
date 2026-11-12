@@ -70,7 +70,8 @@
     const response = await fetch(`/api/editions/${edition.id}/publish`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action }),
+      // The note on the version is asked for by the Publish… window; until it is, the version has none.
+      body: JSON.stringify({ note: '' }),
     });
     const body = (await response.json().catch(() => null)) as {
       message?: string;

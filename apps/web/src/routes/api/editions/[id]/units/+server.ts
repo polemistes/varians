@@ -1,12 +1,12 @@
 /**
  * GET /api/editions/[id]/units?ids=a,b,c
  * The collation units of an edition's text for some segments: its editors
- * get the draft, everyone else the published version.
+ * get the draft, everyone else the latest version.
  */
 import { error, json } from '@sveltejs/kit';
 import { runsOfSegment, units, type Unit } from '@varians/core';
-import { documentAt } from '$lib/server/documents/service';
 import { loadEditionAccess } from '$lib/server/edition-access';
+import { latestVersionWithSnapshot } from '$lib/server/versions';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, params, url }) => {
@@ -15,9 +15,9 @@ export const GET: RequestHandler = async ({ locals, params, url }) => {
   const { edition } = access;
   let content = edition.content;
   if (!access.canEdit) {
-    if (edition.publishedVersion === null) throw error(404, 'No such edition');
-    if (edition.publishedVersion !== edition.version)
-      content = await documentAt(locals.db, 'edition', edition.id, edition.publishedVersion);
+    const latest = await latestVersionWithSnapshot(locals.db, 'edition', edition.id);
+    if (!latest) throw error(404, 'No such edition');
+    content = latest.snapshot.content;
   }
   const out: Record<string, { units: Unit[] }> = {};
   for (const id of (url.searchParams.get('ids') ?? '')

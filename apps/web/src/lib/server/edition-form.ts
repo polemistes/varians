@@ -22,6 +22,7 @@ import { editorNames } from '$lib/edition/editors';
 import { draftsOf, type GroupDraft, type GroupProblem } from '$lib/edition/groups';
 import { edition as s } from '$lib/strings/edition';
 import { canViewTranscription, type Actor, type Grants } from './authz.ts';
+import { hasVersionSql } from './versions.ts';
 import { GroupsRefused, candidateWitnesses, setSigla } from './editions.ts';
 
 /**
@@ -60,7 +61,7 @@ export async function conspectusWitnesses(
         witnessId: transcriptions.witnessId,
         ownerId: transcriptions.ownerId,
         ownerName: users.name,
-        visibility: transcriptions.visibility,
+        hasVersion: hasVersionSql('transcription', transcriptions.id),
       })
       .from(transcriptions)
       .innerJoin(users, eq(users.id, transcriptions.ownerId))
@@ -307,10 +308,17 @@ export async function conspectusRefusal(
   const named = rows.map((r) => r.transcriptionId).filter((id): id is string => !!id);
   if (named.length === 0) return null;
   const found = new Map(
-    (await db.select().from(transcriptions).where(inArray(transcriptions.id, named))).map((t) => [
-      t.id,
-      t,
-    ]),
+    (
+      await db
+        .select({
+          id: transcriptions.id,
+          ownerId: transcriptions.ownerId,
+          witnessId: transcriptions.witnessId,
+          hasVersion: hasVersionSql('transcription', transcriptions.id),
+        })
+        .from(transcriptions)
+        .where(inArray(transcriptions.id, named))
+    ).map((t) => [t.id, t]),
   );
   const current = new Set(
     editionId

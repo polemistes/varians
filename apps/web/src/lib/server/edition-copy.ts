@@ -1,8 +1,8 @@
 /**
  * Copying an edition: a draft of one's own, made from the
  * edition as the copier may see it. Its editors copy the draft as it
- * stands; anyone else copies the published version, with the conspectus
- * it was published with. What comes along: the text with its sources, the
+ * stands; anyone else copies its latest version, from the version's
+ * snapshot, with the conspectus it was published with. What comes along: the text with its sources, the
  * conspectus, the adopted conjectures, the notes and their references, the
  * alignments, the kinds set on sites, the conventions. What does not: the history, collaborators,
  * reviews and published versions. The copy remembers where it came from.
@@ -20,17 +20,17 @@ import {
   type Database,
   type Edition,
   type EditionOrigin,
+  type EditionSnapshot,
 } from '@varians/db';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { withoutLatin } from '$lib/edition/conventions';
 import { canViewTranscription, grantsFor, type Actor } from './authz.ts';
 import { replaceContent } from './documents/service.ts';
 import { loadEditionAccess } from './edition-access.ts';
 import { uniqueEditionSlug } from './editions.ts';
-import { loadEditionContext } from './collation.ts';
-import { contextAt } from './reader.ts';
-import { publishedVersions } from './publish.ts';
+import { draftSource, versionSource } from './reader.ts';
 import { deleteHistory } from './registry.ts';
+import { hasVersionSql, latestVersionWithSnapshot } from './versions.ts';
 
 export type CopyRefusal = 'not-found' | 'forbidden';
 
@@ -51,14 +51,15 @@ export async function copyEdition(
   // A draft one may not see is answered as if there were none.
   if (!access || !access.canView) return 'not-found';
   const source = access.edition;
-  // Editors copy the draft; readers the published version, and only that.
+  // Editors copy the draft; readers the latest version, and only that.
   const asEditor = access.canEdit;
-  if (!asEditor && source.publishedVersion === null) return 'forbidden';
-  const { context } = asEditor
-    ? { context: await loadEditionContext(db, source.id) }
-    : await contextAt(db, source.id, source.publishedVersion);
+  const latest = asEditor ? null : await latestVersionWithSnapshot(db, 'edition', source.id);
+  if (!asEditor && !latest) return 'forbidden';
+  const read = latest ? await versionSource(db, source, latest) : await draftSource(db, source.id);
+  const snapshot = latest ? (latest.snapshot as EditionSnapshot) : null;
+  const { context, meta } = read;
   const content: Stream = context.edition.content;
-  const version = asEditor ? source.version : source.publishedVersion!;
+  const version = context.edition.version;
 
   // The conspectus: each witness with its transcription, where the copier may see it.
   const grants = await grantsFor(db, user);
@@ -70,7 +71,7 @@ export async function copyEdition(
         .select({
           id: transcriptions.id,
           ownerId: transcriptions.ownerId,
-          visibility: transcriptions.visibility,
+          hasVersion: hasVersionSql('transcription', transcriptions.id),
         })
         .from(transcriptions)
         .where(inArray(transcriptions.id, named))
@@ -93,13 +94,11 @@ export async function copyEdition(
   });
 
   const id = newId();
-  const number = asEditor
-    ? null
-    : ((await publishedVersions(db, source.id)).find((m) => m.version === version)?.number ?? null);
+  const number = latest?.number ?? null;
   const origin: EditionOrigin = {
     editionId: source.id,
-    title: source.title,
-    editors: source.editors,
+    title: meta.title,
+    editors: meta.editors,
     version,
     published: !asEditor,
     number,
@@ -110,12 +109,12 @@ export async function copyEdition(
     slug: await uniqueEditionSlug(db, title),
     title: title.trim(),
     // The names printed are the original's editors': kept for an editor's own copy, left for the new editor to give otherwise.
-    editors: asEditor ? source.editors : [],
-    preface: source.preface,
-    sources: source.sources,
-    rightsNote: source.rightsNote,
+    editors: asEditor ? meta.editors : [],
+    preface: meta.preface,
+    sources: meta.sources,
+    rightsNote: meta.rightsNote,
     ownerId: user.id,
-    conventions: withoutLatin(source.conventions),
+    conventions: withoutLatin(meta.conventions),
     copiedFrom: origin,
   });
   try {
@@ -127,15 +126,17 @@ export async function copyEdition(
         user.id,
         0,
         content,
-        `copied from ${source.title}, version ${version}`,
+        `copied from ${meta.title}, version ${version}`,
       );
     if (sigla.length)
       await db.insert(editionSigla).values(sigla.map((s) => ({ editionId: id, ...s })));
 
-    const adopted = await db
-      .select({ conjectureId: editionAdoptions.conjectureId })
-      .from(editionAdoptions)
-      .where(eq(editionAdoptions.editionId, source.id));
+    const adopted = snapshot
+      ? snapshot.adoptions
+      : await db
+          .select({ conjectureId: editionAdoptions.conjectureId })
+          .from(editionAdoptions)
+          .where(eq(editionAdoptions.editionId, source.id));
     if (adopted.length)
       await db
         .insert(editionAdoptions)
@@ -143,7 +144,10 @@ export async function copyEdition(
 
     // Notes and alignments come along where the words they are about are in the copied text.
     const present = new Set(content.items.filter(isToken).map((t) => t.id));
-    const sourceNotes = await db.select().from(notes).where(eq(notes.editionId, source.id));
+    // Of a version, its notes as they stood, by their persons; of the draft, with their authors' accounts.
+    const sourceNotes = snapshot
+      ? snapshot.notes.map((n) => ({ ...n, authorId: null }))
+      : await db.select().from(notes).where(eq(notes.editionId, source.id));
     const noteIds = new Map<string, string>();
     const keptNotes = sourceNotes.filter((n) => n.tokenIds.every((t) => present.has(t)));
     for (const n of keptNotes) noteIds.set(n.id, newId());
@@ -156,24 +160,27 @@ export async function copyEdition(
           tokenIds: n.tokenIds,
           text: n.text,
           authorId: n.authorId,
+          personId: n.personId,
         })),
       );
     }
-    const sourceCitations = await db
-      .select()
-      .from(citations)
-      .where(eq(citations.editionId, source.id));
-    const noteCitations = keptNotes.length
-      ? await db
-          .select()
-          .from(citations)
-          .where(
-            inArray(
-              citations.noteId,
-              keptNotes.map((n) => n.id),
-            ),
-          )
-      : [];
+    const keptNoteIds = new Set(keptNotes.map((n) => n.id));
+    const sourceCitations = snapshot
+      ? snapshot.citations.filter((c) => c.editionId === source.id)
+      : await db.select().from(citations).where(eq(citations.editionId, source.id));
+    const noteCitations = snapshot
+      ? snapshot.citations.filter((c) => c.noteId !== null && keptNoteIds.has(c.noteId))
+      : keptNotes.length
+        ? await db
+            .select()
+            .from(citations)
+            .where(
+              inArray(
+                citations.noteId,
+                keptNotes.map((n) => n.id),
+              ),
+            )
+        : [];
     const copiedCitations = [
       ...sourceCitations.filter((c) => c.noteId === null),
       ...noteCitations,
@@ -191,10 +198,12 @@ export async function copyEdition(
     }));
     if (copiedCitations.length) await db.insert(citations).values(copiedCitations);
 
-    const constraints = await db
-      .select()
-      .from(alignmentConstraints)
-      .where(eq(alignmentConstraints.editionId, source.id));
+    const constraints = snapshot
+      ? snapshot.constraints
+      : await db
+          .select()
+          .from(alignmentConstraints)
+          .where(eq(alignmentConstraints.editionId, source.id));
     const keptConstraints = constraints.filter(
       (c) =>
         c.baseTokenIds.every((t) => present.has(t)) &&
@@ -228,7 +237,7 @@ export async function copyEdition(
     // No half-made copy: its history goes, and all else hangs on the edition row and goes with it.
     await db.transaction(async (tx) => {
       await deleteHistory(tx, 'edition', [id]);
-      await tx.delete(editions).where(and(eq(editions.id, id), isNull(editions.publishedVersion)));
+      await tx.delete(editions).where(eq(editions.id, id));
     });
     throw cause;
   }

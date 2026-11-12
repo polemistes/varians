@@ -1059,7 +1059,6 @@ async function makeTranscripts(s: Seeding): Promise<void> {
       description:
         'Reconstructed from a printed text and its apparatus; not read from the witness.',
       ownerId,
-      visibility: 'draft',
     });
     await replaceContent(db, 'transcription', id, ownerId, 0, { items }, PAGE_REASON);
     count(s, 'transcripts');

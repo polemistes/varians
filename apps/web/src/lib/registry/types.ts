@@ -4,7 +4,8 @@
  */
 import type { ConjectureKind } from '@varians/db';
 
-export type RecordVisibility = 'draft' | 'published';
+/** The number of a record's latest version that is not withdrawn; null while it has none, and only its editors see it. */
+export type LatestVersion = number | null;
 
 /** What a row of an owned record may be used for by the current user. */
 export interface RowRights {
@@ -62,7 +63,7 @@ export interface WorkTranscriptionRow {
   name: string;
   ownerId: string;
   ownerName: string;
-  visibility: RecordVisibility;
+  latestVersion: LatestVersion;
   witnessId: string;
   witnessSlug: string;
   witnessName: string;
@@ -77,7 +78,7 @@ export interface WitnessTranscriptionRow {
   name: string;
   ownerId: string;
   ownerName: string;
-  visibility: RecordVisibility;
+  latestVersion: LatestVersion;
   updatedAt: string;
   /** The works its text is assigned to, with the number of segments of each. */
   assigned: (WorkRef & { segmentCount: number })[];
@@ -97,7 +98,7 @@ export interface WorkEditionRow {
   editors: string[];
   ownerId: string;
   ownerName: string;
-  visibility: RecordVisibility;
+  latestVersion: LatestVersion;
   updatedAt: string;
   collaboratorIds: string[];
 }

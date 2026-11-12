@@ -24,6 +24,7 @@ import {
   workRemotes,
   type Database,
 } from '@varians/db';
+import { hasVersion, latestVersion } from './versions.ts';
 import { and, desc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import { createWriteStream } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -111,26 +112,24 @@ export async function syncState(
   const only = filters.get(workId);
   if (!only) return null;
   const documents: SyncDocument[] = [];
-  for (const t of await connectedTranscriptions(db, workId)) {
+  // A record the viewer may not edit is held as its latest version, without its draft; one with no version not at all.
+  const shown = async (kind: 'transcription' | 'edition', id: string, working: boolean, current: number) => {
+    if (working) documents.push({ id, kind, head: await headAt(db, kind, id, null), version: current });
+    else {
+      const latest = await latestVersion(db, kind, id);
+      if (latest)
+        documents.push({ id, kind, head: await headAt(db, kind, id, latest.version), version: latest.version });
+    }
+  };
+  for (const row of await connectedTranscriptions(db, workId)) {
+    const t = { ...row, hasVersion: await hasVersion(db, 'transcription', row.id) };
     if (!only.transcription(t)) continue;
-    documents.push({
-      id: t.id,
-      kind: 'transcription',
-      head: await headAt(db, 'transcription', t.id, null),
-      version: t.version,
-    });
+    await shown('transcription', t.id, only.transcriptionWorking(t), t.version);
   }
-  for (const e of await db.select().from(editions).where(eq(editions.workId, workId))) {
+  for (const row of await db.select().from(editions).where(eq(editions.workId, workId))) {
+    const e = { ...row, hasVersion: await hasVersion(db, 'edition', row.id) };
     if (!only.edition(e)) continue;
-    const working = only.editionWorking(e);
-    if (!working && e.publishedVersion === null) continue;
-    const version = working ? e.version : e.publishedVersion!;
-    documents.push({
-      id: e.id,
-      kind: 'edition',
-      head: await headAt(db, 'edition', e.id, working ? null : version),
-      version,
-    });
+    await shown('edition', e.id, only.editionWorking(e), e.version);
   }
   documents.sort((a, b) => a.id.localeCompare(b.id));
   return {

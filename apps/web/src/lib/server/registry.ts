@@ -41,6 +41,7 @@ import {
   referenceSchemes,
   reportedReadings,
   reviewState,
+  versions,
   segments,
   sql,
   transcriptionSegments,
@@ -53,6 +54,7 @@ import {
   works,
   type CanonicalIdentifier,
   type Database,
+  type TranscriptionSnapshot,
   type WitnessHand,
   type SQL,
   type Transcription,
@@ -60,6 +62,7 @@ import {
   type Work,
 } from '@varians/db';
 import { identifierMatches } from './identifier-search.ts';
+import { hasVersionSql, latestVersionSql, latestVersionWithSnapshot } from './versions.ts';
 import { joinLevelLabels, keepsAddresses, relabel, separatorsChanged } from '$lib/registry/scheme';
 import type {
   ConjectureRow,
@@ -649,6 +652,8 @@ export interface NewTranscription {
   keepsWrittenForm?: boolean;
   /** Copy this transcription's text, with new ids, as the starting point. */
   fromTranscriptionId?: string | null;
+  /** Copy its latest version rather than its draft: for one who may not edit it. */
+  fromLatestVersion?: boolean;
 }
 
 /**
@@ -680,6 +685,23 @@ export async function createTranscription(
       .where(eq(transcriptions.id, input.fromTranscriptionId));
     if (!row) throw new RegistryError('not-found', `no transcription ${input.fromTranscriptionId}`);
     source = { ...row.transcription, witnessName: row.witnessName };
+    if (input.fromLatestVersion) {
+      // The version as it was published: its text and settings, and no memory, which is the draft's.
+      const latest = await latestVersionWithSnapshot(db, 'transcription', row.transcription.id);
+      if (!latest)
+        throw new RegistryError('not-found', `no version of transcription ${row.transcription.id}`);
+      const snapshot = latest.snapshot as TranscriptionSnapshot;
+      source = {
+        ...source,
+        name: snapshot.name,
+        content: snapshot.content,
+        keepsWrittenForm: snapshot.keepsWrittenForm,
+        displayAsWritten: snapshot.displayAsWritten,
+        sources: snapshot.sources,
+        rightsNote: snapshot.rightsNote,
+        memory: [],
+      };
+    }
   }
   const derived = source ? deriveTranscription(source.content) : null;
 
@@ -796,6 +818,10 @@ export async function deleteHistory(
   await tx
     .delete(ownershipOffers)
     .where(and(eq(ownershipOffers.kind, kind), inArray(ownershipOffers.recordId, ids)));
+  // A record deleted takes its versions with it.
+  await tx
+    .delete(versions)
+    .where(and(eq(versions.documentKind, kind), inArray(versions.documentId, ids)));
 }
 
 export type DeleteTranscriptionResult =
@@ -819,17 +845,32 @@ export async function deleteTranscription(
     .where(eq(transcriptions.id, id));
   if (!row) return { ok: false, error: 'not-found' };
   if (!canDeleteTranscription(user, row)) return { ok: false, error: 'forbidden' };
-  const naming = await db
-    .selectDistinct({
-      id: editions.id,
-      slug: editions.slug,
-      title: editions.title,
-      ownerId: editions.ownerId,
-      visibility: editions.visibility,
-    })
+  const editionColumns = {
+    id: editions.id,
+    slug: editions.slug,
+    title: editions.title,
+    ownerId: editions.ownerId,
+    hasVersion: hasVersionSql('edition', editions.id),
+  };
+  const inConspectus = await db
+    .selectDistinct(editionColumns)
     .from(editionSigla)
     .innerJoin(editions, eq(editions.id, editionSigla.editionId))
     .where(eq(editionSigla.transcriptionId, id));
+  // A version of an edition compares the transcript at a version of its own, whatever the conspectus says now.
+  const inVersions = await db
+    .selectDistinct(editionColumns)
+    .from(versions)
+    .innerJoin(editions, eq(editions.id, versions.documentId))
+    .where(
+      and(
+        eq(versions.documentKind, 'edition'),
+        sql`${versions.snapshot} -> 'witnessVersions' ? ${id}`,
+      ),
+    );
+  const naming = [
+    ...new Map([...inConspectus, ...inVersions].map((e) => [e.id, e] as const)).values(),
+  ];
   if (naming.length) {
     // `canDeleteTranscription` has let a person through, so `user` is not null.
     return { ok: false, error: 'in-conspectus', ...(await nameVisibleEditions(db, user!, naming)) };
@@ -870,7 +911,7 @@ async function nameVisibleEditions(
     slug: string;
     title: string;
     ownerId: string;
-    visibility: 'draft' | 'published';
+    hasVersion: boolean;
   }[],
 ): Promise<Pick<Dependents, 'editions' | 'hiddenEditions'>> {
   if (rows.length === 0) return { editions: [], hiddenEditions: 0 };
@@ -911,7 +952,7 @@ export async function witnessDependents(
       slug: editions.slug,
       title: editions.title,
       ownerId: editions.ownerId,
-      visibility: editions.visibility,
+      hasVersion: hasVersionSql('edition', editions.id),
     })
     .from(editionSigla)
     .innerJoin(editions, eq(editions.id, editionSigla.editionId))
@@ -943,7 +984,7 @@ export async function workDependents(
       slug: editions.slug,
       title: editions.title,
       ownerId: editions.ownerId,
-      visibility: editions.visibility,
+      hasVersion: hasVersionSql('edition', editions.id),
     })
     .from(editions)
     .where(and(eq(editions.workId, workId), ne(editions.ownerId, user.id)));
@@ -1073,7 +1114,7 @@ export async function transcriptionsOfWork(
       name: transcriptions.name,
       ownerId: transcriptions.ownerId,
       ownerName: users.name,
-      visibility: transcriptions.visibility,
+      latestVersion: latestVersionSql('transcription', transcriptions.id),
       witnessId: witnesses.id,
       witnessSlug: witnesses.slug,
       witnessName: witnesses.name,
@@ -1103,7 +1144,7 @@ export async function transcriptionsOfWitness(
       name: transcriptions.name,
       ownerId: transcriptions.ownerId,
       ownerName: users.name,
-      visibility: transcriptions.visibility,
+      latestVersion: latestVersionSql('transcription', transcriptions.id),
       updatedAt: transcriptions.updatedAt,
     })
     .from(transcriptions)
@@ -1142,7 +1183,7 @@ export async function transcriptionsOfWitness(
     name: r.name,
     ownerId: r.ownerId,
     ownerName: r.ownerName,
-    visibility: r.visibility,
+    latestVersion: r.latestVersion,
     updatedAt: iso(r.updatedAt),
     assigned: counts
       .filter((c) => c.transcriptionId === r.id && workById.has(c.workId))
@@ -1167,7 +1208,7 @@ export async function worksOfWitness(
         workId: transcriptionSegments.workId,
         transcriptionId: transcriptionSegments.transcriptionId,
         ownerId: transcriptions.ownerId,
-        visibility: transcriptions.visibility,
+        hasVersion: hasVersionSql('transcription', transcriptions.id),
         n: countDistinct(transcriptionSegments.segmentId),
       })
       .from(transcriptionSegments)
@@ -1177,7 +1218,6 @@ export async function worksOfWitness(
         transcriptionSegments.workId,
         transcriptionSegments.transcriptionId,
         transcriptions.ownerId,
-        transcriptions.visibility,
       )
   ).filter((r) => canViewTranscription(viewer, { ...r, id: r.transcriptionId }, grants));
   const viaReadings = await db
@@ -1237,7 +1277,7 @@ export async function editionRowsOfWork(db: Database, workId: string): Promise<W
       editors: editions.editors,
       ownerId: editions.ownerId,
       ownerName: users.name,
-      visibility: editions.visibility,
+      latestVersion: latestVersionSql('edition', editions.id),
       updatedAt: editions.updatedAt,
     })
     .from(editions)
@@ -1401,7 +1441,7 @@ export function viewableTranscriptions(
   const where = isSiteEditor(user)
     ? undefined
     : or(
-        eq(transcriptions.visibility, 'published'),
+        hasVersionSql('transcription', transcriptions.id),
         user ? eq(transcriptions.ownerId, user.id) : undefined,
         reached.length ? inArray(transcriptions.id, reached) : undefined,
       );

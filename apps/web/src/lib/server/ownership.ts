@@ -15,6 +15,7 @@ import {
 } from '@varians/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { canViewEdition, type Actor } from './authz.ts';
+import { hasVersionSql } from './versions.ts';
 
 export interface OfferView {
   id: string;
@@ -128,7 +129,7 @@ export async function offersOf(
           title: editions.title,
           slug: editions.slug,
           ownerId: editions.ownerId,
-          visibility: editions.visibility,
+          hasVersion: hasVersionSql('edition', editions.id),
         })
         .from(editions)
         .where(eq(editions.id, row.recordId));

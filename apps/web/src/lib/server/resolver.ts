@@ -30,7 +30,7 @@ import {
   type Actor,
   type Grants,
 } from './authz.ts';
-import { documentAt } from './documents/service.ts';
+import { hasVersionSql, latestVersionWithSnapshot } from './versions.ts';
 
 export type Resolved =
   | { kind: 'work'; id: string; workId: string; slug: string }
@@ -169,7 +169,7 @@ async function documentVisibility(
       .select({
         id: transcriptions.id,
         ownerId: transcriptions.ownerId,
-        visibility: transcriptions.visibility,
+        hasVersion: hasVersionSql('transcription', transcriptions.id),
       })
       .from(transcriptions)
       .where(eq(transcriptions.id, id));
@@ -183,7 +183,7 @@ async function documentVisibility(
     .select({
       id: editions.id,
       ownerId: editions.ownerId,
-      visibility: editions.visibility,
+      hasVersion: hasVersionSql('edition', editions.id),
       workId: editions.workId,
     })
     .from(editions)
@@ -227,29 +227,15 @@ export async function visibilityOf(
         resolved.documentKind,
         resolved.documentId,
       );
-      if (!document.visible || document.edits || resolved.documentKind === 'transcription')
-        return document;
-      // In an edition someone does not edit: only what its published version holds.
-      const [e] = await db
-        .select({ publishedVersion: editions.publishedVersion })
-        .from(editions)
-        .where(eq(editions.id, resolved.documentId));
-      if (e?.publishedVersion === null || e?.publishedVersion === undefined)
-        return { visible: false, edits: false };
-      if (resolved.kind === 'changeset') {
-        const [c] = await db
-          .select({ version: changesets.version })
-          .from(changesets)
-          .where(and(eq(changesets.id, resolved.id)));
-        return {
-          visible:
-            c?.version !== null && c?.version !== undefined && c.version <= e.publishedVersion,
-          edits: false,
-        };
-      }
-      // A word of the working text that the published version does not have is not found.
-      const published = await documentAt(db, 'edition', resolved.documentId, e.publishedVersion);
-      return published.items.some((i) => i.id === resolved.id)
+      if (!document.visible || document.edits) return document;
+      // Of a document someone does not edit only its latest version is public: no changeset of its draft's history, and only the words that version has.
+      if (resolved.kind === 'changeset') return { visible: false, edits: false };
+      const latest = await latestVersionWithSnapshot(
+        db,
+        resolved.documentKind,
+        resolved.documentId,
+      );
+      return latest?.snapshot.content.items.some((i) => i.id === resolved.id)
         ? document
         : { visible: false, edits: false };
     }
@@ -277,11 +263,11 @@ export async function pageOf(
         ? `/editions/${enc(resolved.slug)}/edit`
         : `/editions/${enc(resolved.slug)}`;
     case 'segment': {
-      // A published edition of the work at the segment, where there is one; else the work.
+      // An edition of the work with a version, at the segment, where there is one; else the work.
       const [published] = await db
         .select({ slug: editions.slug })
         .from(editions)
-        .where(and(eq(editions.workId, resolved.workId), eq(editions.visibility, 'published')))
+        .where(and(eq(editions.workId, resolved.workId), hasVersionSql('edition', editions.id)))
         .orderBy(editions.createdAt)
         .limit(1);
       return published

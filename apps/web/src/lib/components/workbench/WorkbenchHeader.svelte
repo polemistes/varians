@@ -50,7 +50,7 @@
     </a>
     <span class="text-ink-muted" aria-hidden="true">·</span>
     <h1 class="truncate font-medium text-ink">{wb.name}</h1>
-    {#if wb.visibility === 'draft'}<Badge>{t.draft}</Badge>{/if}
+    {#if wb.latestVersion === null}<Badge>{t.draft}</Badge>{/if}
     {#if !wb.canEdit}<Badge tone="accent">{t.readOnly}</Badge>{/if}
   </div>
 

@@ -60,6 +60,7 @@ import {
   transcriptionSegments,
   transcriptions,
   users,
+  versions,
   witnessMaintainers,
   witnesses,
   workMaintainers,
@@ -67,12 +68,14 @@ import {
   zones,
   type CanonicalIdentifier,
   type Database,
-  type MomentBasis,
+  type EditionSnapshot,
+  type TranscriptionSnapshot,
   type SiglumState,
 } from '@varians/db';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { changesBetween } from '../../history/changes.ts';
 import { citationsOfWork } from './archive.ts';
 import { nameMoment, rebuildSegmentIndex, replaceContent } from '../documents/service.ts';
 import { conformStored } from '../conform.ts';
@@ -1026,7 +1029,6 @@ async function importInto(
         name: string;
         witnessId: string;
         ownerId: string;
-        visibility: 'draft' | 'published';
         version: number;
         keepsWrittenForm: boolean;
         displayAsWritten: boolean;
@@ -1049,7 +1051,6 @@ async function importInto(
         witnessId: w.id,
         name: t.name,
         ownerId: owner(ctx, t.ownerId),
-        visibility: t.visibility,
         keepsWrittenForm: t.keepsWrittenForm,
         displayAsWritten: t.displayAsWritten,
         memory,
@@ -1110,6 +1111,7 @@ async function importInto(
         if (rows.length) await db.insert(zones).values(rows).onConflictDoNothing();
       }
       await importReviewStates(ctx, tdir, 'transcription', t.id);
+      await importVersions(ctx, tdir, 'transcription', t.id, wordsOf);
     }
   }
 
@@ -1175,9 +1177,7 @@ async function importInto(
       editors: string[] | string | null;
       preface: string | null;
       ownerId: string;
-      visibility: 'draft' | 'published';
       version: number;
-      publishedVersion: number | null;
       conventions: typeof editions.$inferSelect.conventions;
       /** Absent in archives written before editions could be copied. */
       copiedFrom?: typeof editions.$inferSelect.copiedFrom;
@@ -1235,8 +1235,6 @@ async function importInto(
       editors: editorList(e.editors),
       preface: e.preface,
       ownerId: owner(ctx, e.ownerId),
-      visibility: e.visibility,
-      publishedVersion: e.publishedVersion,
       // An archive written before November 2026 may carry `latin`, which is ignored.
       conventions: withoutLatin(e.conventions),
       copiedFrom: e.copiedFrom
@@ -1430,6 +1428,7 @@ async function importInto(
       }
     }
     await importReviewStates(ctx, edir, 'edition', e.id);
+    await importVersions(ctx, edir, 'edition', e.id, wordsOf);
   }
 
   const items =
@@ -1532,7 +1531,7 @@ function licenceFields(
 
 /**
  * The fields of an existing record to update: a restricted import never
- * changes who owns it, whether and what is published, nor where it belongs
+ * changes who owns it, nor where it belongs
  * (its work, its witness, its address); those are its owner's to change.
  */
 function keepOwner<T extends Record<string, unknown>>(ctx: Context, meta: T): Partial<T> {
@@ -1540,8 +1539,6 @@ function keepOwner<T extends Record<string, unknown>>(ctx: Context, meta: T): Pa
   const rest: Record<string, unknown> = { ...meta };
   for (const key of [
     'ownerId',
-    'visibility',
-    'publishedVersion',
     'workId',
     'witnessId',
     'slug',
@@ -1551,14 +1548,9 @@ function keepOwner<T extends Record<string, unknown>>(ctx: Context, meta: T): Pa
   return rest as Partial<T>;
 }
 
-/** What a restricted import brings in new is a draft: publishing is done here, through the publication. */
-function asNew<T extends Record<string, unknown>>(ctx: Context, values: T): T {
-  if (!ctx.guard.restricted) return values;
-  return {
-    ...values,
-    ...('visibility' in values ? { visibility: 'draft' } : {}),
-    ...('publishedVersion' in values ? { publishedVersion: null } : {}),
-  };
+/** What a restricted import brings in new is a draft: it brings no versions (`importVersions`), publishing being done here. */
+function asNew<T extends Record<string, unknown>>(_ctx: Context, values: T): T {
+  return values;
 }
 
 /** Whether a document's own records (zones, conspectus, notes and the rest) are taken from the archive: not when its text conflicts and ours is kept. */
@@ -1862,8 +1854,6 @@ async function importMoments(
       version: number;
       name: string;
       kind: 'named' | 'published';
-      number: number | null;
-      basis?: MomentBasis | null;
       personId?: string | null;
       createdBy?: string | null;
       at: string;
@@ -1879,8 +1869,6 @@ async function importMoments(
         version: m.version,
         name: m.name,
         kind: m.kind,
-        number: m.number,
-        basis: m.basis ?? null,
         personId: person(ctx, author),
         createdBy: account(ctx, author),
         at: new Date(m.at),
@@ -1888,6 +1876,291 @@ async function importMoments(
       .onConflictDoNothing();
   }
 }
+
+/**
+ * The versions of a document (Data Format 2, 4.12): each listed in
+ * versions.json and not yet here is made from the files of its directory,
+ * versions/<n>/, which are its snapshot; a withdrawal is taken over by one
+ * already here. A version this installation numbers otherwise is left as it
+ * is, and a restricted import brings none, publishing being done here.
+ * Archives written before versions existed have none to read: their
+ * published moments are moments only.
+ */
+async function importVersions(
+  ctx: Context,
+  dir: string,
+  kind: 'transcription' | 'edition',
+  documentId: string,
+  wordsOf: (content: Stream) => Stream,
+): Promise<void> {
+  if (ctx.guard.restricted) return;
+  const { db, reader } = ctx;
+  const list =
+    (await reader.list<{
+      id: string;
+      number: number;
+      version: number;
+      momentId?: string | null;
+      note?: string | null;
+      personId?: string | null;
+      at: string;
+      withdrawn?: { at: string; personId?: string | null; note?: string | null } | null;
+    }>(path.join(dir, 'versions.json'), 'versions')) ?? [];
+  for (const v of list) {
+    if (!Number.isInteger(v.number) || v.number < 1) continue;
+    const [here] = await db
+      .select({ id: versions.id, withdrawnAt: versions.withdrawnAt })
+      .from(versions)
+      .where(
+        and(
+          eq(versions.documentKind, kind),
+          eq(versions.documentId, documentId),
+          eq(versions.number, v.number),
+        ),
+      );
+    if (here) {
+      // The same version: withdrawn there, withdrawn here too. Another under the same number is ours to keep.
+      if (here.id === v.id && v.withdrawn && !here.withdrawnAt)
+        await db
+          .update(versions)
+          .set({
+            withdrawnAt: when(v.withdrawn.at) ?? new Date(),
+            withdrawnBy: person(ctx, v.withdrawn.personId),
+            withdrawalNote: v.withdrawn.note ?? null,
+          })
+          .where(eq(versions.id, here.id));
+      continue;
+    }
+    const vdir = path.join(dir, 'versions', String(v.number));
+    const snapshot =
+      kind === 'transcription'
+        ? await transcriptionSnapshotFrom(ctx, vdir, wordsOf)
+        : await editionSnapshotFrom(ctx, vdir, wordsOf);
+    if (!snapshot) {
+      ctx.warnings.push(`version ${v.number} of ${documentId} has no files and is left out`);
+      continue;
+    }
+    const [moment] = v.momentId
+      ? await db.select({ id: moments.id }).from(moments).where(eq(moments.id, v.momentId))
+      : [];
+    const [taken] = await db.select({ id: versions.id }).from(versions).where(eq(versions.id, v.id));
+    // versions.json lists no changes: they are made here, from the text of the version before and of this one.
+    const [before] = await db
+      .select({ version: versions.version, snapshot: versions.snapshot })
+      .from(versions)
+      .where(
+        and(
+          eq(versions.documentKind, kind),
+          eq(versions.documentId, documentId),
+          lt(versions.number, v.number),
+        ),
+      )
+      .orderBy(desc(versions.number))
+      .limit(1);
+    const changes = changesBetween(
+      before?.snapshot.content ?? { items: [] },
+      snapshot.content,
+      before?.version ?? 0,
+      v.version,
+      [],
+      (id) => ctx.segmentLabel.get(id) ?? null,
+    );
+    await db.insert(versions).values({
+      id: taken ? newId() : v.id,
+      documentKind: kind,
+      documentId,
+      number: v.number,
+      version: v.version,
+      momentId: moment?.id ?? null,
+      note: v.note ?? null,
+      personId: person(ctx, v.personId),
+      createdBy: account(ctx, v.personId),
+      at: when(v.at) ?? new Date(),
+      withdrawnAt: v.withdrawn ? (when(v.withdrawn.at) ?? new Date()) : null,
+      withdrawnBy: v.withdrawn ? person(ctx, v.withdrawn.personId) : null,
+      withdrawalNote: v.withdrawn?.note ?? null,
+      snapshot,
+      changes,
+    });
+  }
+}
+
+/** A row of a version's file with its times kept as the strings they are. */
+type FileRow = Record<string, unknown> & { id: string };
+
+/** A transcription's snapshot from the files of a version's directory. */
+async function transcriptionSnapshotFrom(
+  ctx: Context,
+  vdir: string,
+  wordsOf: (content: Stream) => Stream,
+): Promise<TranscriptionSnapshot | null> {
+  const t = await ctx.reader.json<{
+    name: string;
+    witnessId: string;
+    description?: string | null;
+    sources?: string | null;
+    licence?: string | null;
+    rightsNote?: string | null;
+    keepsWrittenForm?: boolean;
+    displayAsWritten?: boolean;
+    content: Stream;
+  }>(path.join(vdir, 'transcription.json'));
+  if (!t) return null;
+  const zoneList =
+    (await ctx.reader.list<{
+      id: string;
+      pageId: string;
+      tokenIds: string[];
+      geometry: ZoneGeometry;
+      feature: { kind: string; description?: string } | null;
+      createdAt?: string | null;
+    }>(path.join(vdir, 'zones.json'), 'zones')) ?? [];
+  const licence = licenceFields(t.licence, t.rightsNote);
+  return {
+    name: t.name,
+    witnessId: t.witnessId,
+    description: t.description ?? null,
+    sources: t.sources ?? null,
+    rightsNote: licence.rightsNote,
+    licenceId: licence.licenceId,
+    keepsWrittenForm: t.keepsWrittenForm ?? false,
+    displayAsWritten: t.displayAsWritten ?? false,
+    content: wordsOf(t.content),
+    zones: zoneList.map((z) => ({
+      id: z.id,
+      pageId: z.pageId,
+      tokenIds: z.tokenIds,
+      geometry: z.geometry,
+      feature: z.feature ?? null,
+      createdAt: z.createdAt ?? new Date(0).toISOString(),
+    })),
+  };
+}
+
+/** An edition's snapshot from the edition.json of a version's directory, with the members a version's has besides. */
+async function editionSnapshotFrom(
+  ctx: Context,
+  vdir: string,
+  wordsOf: (content: Stream) => Stream,
+): Promise<EditionSnapshot | null> {
+  const e = await ctx.reader.json<{
+    title: string;
+    editors?: string[] | string | null;
+    preface?: string | null;
+    sources?: string | null;
+    licence?: string | null;
+    rightsNote?: string | null;
+    conventions: EditionSnapshot['conventions'];
+    copiedFrom?: EditionSnapshot['copiedFrom'];
+    content: Stream;
+    sigla?: {
+      siglum: string;
+      witnessId: string;
+      transcriptionId: string | null;
+      states?: SiglumState[];
+      originalSiglum?: string | null;
+      variantSiglum?: string | null;
+    }[];
+    witnessVersions?: Record<string, number>;
+    adoptions?: (string | { conjectureId: string; at?: string | null })[];
+    notes?: {
+      id: string;
+      segmentId: string;
+      tokenIds: string[];
+      text: string;
+      personId?: string | null;
+      createdAt?: string | null;
+    }[];
+    siteKinds?: {
+      segmentId: string;
+      siteKey: string;
+      kind?: string;
+      minor?: boolean;
+      personId?: string | null;
+      setAt?: string | null;
+    }[];
+    conjectures?: FileRow[];
+    readings?: FileRow[];
+    citations?: FileRow[];
+    bibliography?: FileRow[];
+    constraints?: FileRow[];
+  }>(path.join(vdir, 'edition.json'));
+  if (!e) return null;
+  const notePersons = [
+    ...new Set((e.notes ?? []).map((n) => person(ctx, n.personId)).filter((id) => id !== null)),
+  ] as string[];
+  const names = new Map(
+    notePersons.length
+      ? (
+          await ctx.db
+            .select({ id: persons.id, name: persons.name })
+            .from(persons)
+            .where(inArray(persons.id, notePersons))
+        ).map((p) => [p.id, p.name] as const)
+      : [],
+  );
+  const licence = licenceFields(e.licence, e.rightsNote);
+  // What the writer adds for people (labels) is not part of the record.
+  const withoutLabel = <T extends FileRow>(row: T) => stripped(row, 'segmentLabel') as T;
+  return {
+    title: e.title,
+    editors: editorList(e.editors ?? null),
+    preface: e.preface ?? null,
+    sources: e.sources ?? null,
+    rightsNote: licence.rightsNote,
+    licenceId: licence.licenceId,
+    conventions: withoutLatin(e.conventions),
+    copiedFrom: e.copiedFrom ?? null,
+    content: wordsOf(e.content),
+    sigla: (e.sigla ?? []).map((s) => {
+      const n = normalizeSiglum(s);
+      return {
+        siglum: n.siglum,
+        witnessId: n.witnessId,
+        transcriptionId: n.transcriptionId,
+        states: n.states,
+        variantSiglum: n.variantSiglum,
+      };
+    }),
+    witnessVersions: e.witnessVersions ?? {},
+    adoptions: (e.adoptions ?? []).map((a) =>
+      typeof a === 'string' ? { conjectureId: a, at: null } : { conjectureId: a.conjectureId, at: a.at ?? null },
+    ),
+    notes: (e.notes ?? []).map((n) => {
+      const local = person(ctx, n.personId);
+      return {
+        id: n.id,
+        segmentId: n.segmentId,
+        tokenIds: n.tokenIds,
+        text: n.text,
+        personId: local,
+        author: local ? (names.get(local) ?? null) : null,
+        createdAt: n.createdAt ?? null,
+      };
+    }),
+    siteKinds: (e.siteKinds ?? []).flatMap((k) => {
+      const mark = markOfBasis(k);
+      return mark.kind || mark.minor
+        ? [
+            {
+              segmentId: k.segmentId,
+              siteKey: k.siteKey,
+              ...(mark.kind ? { kind: mark.kind } : {}),
+              ...(mark.minor ? { minor: true as const } : {}),
+              personId: person(ctx, k.personId),
+              setAt: k.setAt ?? null,
+            },
+          ]
+        : [];
+    }),
+    conjectures: (e.conjectures ?? []).map(withoutLabel) as unknown as EditionSnapshot['conjectures'],
+    readings: (e.readings ?? []).map(withoutLabel) as unknown as EditionSnapshot['readings'],
+    citations: (e.citations ?? []) as unknown as EditionSnapshot['citations'],
+    bibliography: (e.bibliography ?? []) as unknown as EditionSnapshot['bibliography'],
+    constraints: (e.constraints ?? []) as unknown as EditionSnapshot['constraints'],
+  };
+}
+
 
 /** Each person's review position on a document, for the persons who have an account here. */
 async function importReviewStates(

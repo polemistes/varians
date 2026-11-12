@@ -29,7 +29,7 @@ import { FORMAT_BASE, writeRecordPart } from './archive/archive.ts';
 import { worksOfDocument } from './archive/commits.ts';
 import { viewerFilter } from './archive/viewer.ts';
 import type { Actor } from './authz.ts';
-import { documentAt } from './documents/service.ts';
+import { latestVersionWithSnapshot } from './versions.ts';
 import { workBySlug } from './registry.ts';
 import type { Resolved, Visibility } from './resolver.ts';
 
@@ -219,22 +219,21 @@ export async function recordJson(
     }
     case 'token': {
       let items: Item[];
-      if (resolved.documentKind === 'transcription') {
-        const [t] = await db
-          .select({ content: transcriptions.content })
-          .from(transcriptions)
-          .where(eq(transcriptions.id, resolved.documentId));
-        items = t?.content.items ?? [];
+      if (visibility.edits) {
+        const table = resolved.documentKind === 'transcription' ? transcriptions : editions;
+        const [d] = await db
+          .select({ content: table.content })
+          .from(table)
+          .where(eq(table.id, resolved.documentId));
+        items = d?.content.items ?? [];
       } else {
-        const [e] = await db
-          .select({ content: editions.content, publishedVersion: editions.publishedVersion })
-          .from(editions)
-          .where(eq(editions.id, resolved.documentId));
-        if (!e) return null;
-        items =
-          visibility.edits || e.publishedVersion === null
-            ? e.content.items
-            : (await documentAt(db, 'edition', resolved.documentId, e.publishedVersion)).items;
+        // Of a document the viewer does not edit, its latest version.
+        const latest = await latestVersionWithSnapshot(
+          db,
+          resolved.documentKind,
+          resolved.documentId,
+        );
+        items = latest?.snapshot.content.items ?? [];
       }
       const item = items.find((i) => i.id === resolved.id);
       return item

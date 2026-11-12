@@ -38,9 +38,9 @@
 
 <div class="flex items-center gap-3 border-b border-line bg-surface px-4 py-2 font-sans text-sm">
   <h1 class="min-w-0 truncate font-serif text-lg text-ink">{data.edition.title}</h1>
-  <Badge tone={data.edition.visibility === 'published' ? 'success' : 'neutral'}
-    >{data.edition.visibility === 'published'
-      ? `v${data.versions[0]?.number ?? ''}`
+  <Badge tone={data.edition.latestVersion !== null ? 'success' : 'neutral'}
+    >{data.edition.latestVersion !== null
+      ? `v${data.edition.latestVersion}`
       : s.dialogs.draft}</Badge
   >
   <span class={['text-xs', status.error ? 'text-danger' : 'text-ink-muted']} aria-live="polite"
@@ -51,7 +51,7 @@
       id: data.edition.id,
       slug: data.edition.slug,
       title: data.edition.title,
-      published: data.edition.visibility === 'published',
+      published: data.edition.latestVersion !== null,
     }}
     rights={data.rights}
     place="editor"

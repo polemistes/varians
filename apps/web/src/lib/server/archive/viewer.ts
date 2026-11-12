@@ -1,12 +1,14 @@
 /**
  * What one person may see of a work's archive: the filter a download and
  * the record addresses (/id/) write with, by the same rules as the pages.
- * Transcripts and editions are drafts for those who may not see them; the
+ * A transcript or an edition is taken whole by those who may edit it, by its
+ * versions by everyone else, and not at all where it has none; the
  * conjectures and reported readings are every person's.
  */
 
 import {
   canEditEdition,
+  canEditTranscription,
   canViewEdition,
   canViewTranscription,
   grantsFor,
@@ -23,6 +25,7 @@ export async function viewerFilter(db: Database, user: Actor | null): Promise<Ar
     transcription: (row) => canViewTranscription(user, row, grants),
     edition: (row) => canViewEdition(user, row, collaborators(row.id)),
     editionWorking: (row) => canEditEdition(user, row, collaborators(row.id)),
+    transcriptionWorking: (row) => canEditTranscription(user, row, grants),
     records: true,
   };
 }

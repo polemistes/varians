@@ -67,7 +67,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     edition: {
       id: edition.id,
       slug: edition.slug,
-      published: edition.visibility === 'published',
+      published: access.edition.hasVersion,
       title: edition.title,
       editors: edition.editors,
       preface: edition.preface,

@@ -32,13 +32,13 @@
           <LocalDate date={item.updatedAt} />
         </p>
       </div>
-      {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
+      {#if item.latestVersion === null}<Badge>{registry.common.draft}</Badge>{/if}
       <EditionActions
         edition={{
           id: item.id,
           slug: item.slug,
           title: item.title,
-          published: item.visibility === 'published',
+          published: item.latestVersion !== null,
         }}
         rights={item.can}
         place="list"

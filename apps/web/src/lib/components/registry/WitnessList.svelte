@@ -37,7 +37,7 @@
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-4">
-        {#if item.visibility === 'draft'}<Badge>{registry.common.draft}</Badge>{/if}
+        {#if item.latestVersion === null}<Badge>{registry.common.draft}</Badge>{/if}
         <CoverageBar n={item.segmentCount} {total} />
       </div>
       <!-- A row without a menu keeps its room, so that the coverage of every row stands in line. -->

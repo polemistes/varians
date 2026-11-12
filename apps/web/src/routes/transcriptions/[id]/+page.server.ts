@@ -1,7 +1,7 @@
 /**
  * The transcription workbench. Outside the (app) group: a visitor
- * may read a published transcription; only those who may edit get the
- * tools. Loads the transcription with its witness, pages, works and segment
+ * reads the latest version of a transcription that has one; only those who
+ * may edit get the draft and the tools. Loads the transcription with its witness, pages, works and segment
  * labels; the actions are the imports, the settings and the deletion. The
  * text itself is saved through the documents API by the page's session.
  */
@@ -10,9 +10,6 @@ import { detectNumbering, type UnitMapping } from '@varians/core';
 import { z } from 'zod';
 import { VersionConflict } from '$lib/server/documents/service';
 import { LanguageMissing, languageTag } from '$lib/server/import/language';
-import { DEFAULT_MAX_UPLOAD_BYTES } from '$lib/server/images/tiles';
-import { pageImage } from '$lib/server/page-source';
-import { pageSource } from '$lib/server/pages';
 import {
   fetchTeiSource,
   importLayoutInto,
@@ -29,7 +26,6 @@ import {
   type ImportOutcome,
   type ImportTarget,
   type WorkbenchData,
-  type WorkbenchPageRow,
 } from '$lib/server/workbench';
 import { workbench as t } from '$lib/strings/workbench';
 import { recordActions } from '$lib/strings/record-actions';
@@ -41,47 +37,12 @@ import {
   deleteTranscription as deleteRegisteredTranscription,
 } from '$lib/server/registry';
 import { appendSources } from '$lib/server/workbench';
-
-/** A page as the browser sees it: its viewer source, and an image to read lines from. */
-function clientPage(page: WorkbenchPageRow) {
-  return {
-    id: page.id,
-    label: page.label,
-    width: page.width,
-    height: page.height,
-    source: pageSource({ ...page, imageWidth: page.width, imageHeight: page.height }),
-    image: pageImage(page),
-    rights: page.rights,
-    attribution: page.attribution,
-  };
-}
-
-export type ClientPage = ReturnType<typeof clientPage>;
-
-function clientData(data: WorkbenchData) {
-  return {
-    transcription: data.transcription,
-    witness: data.witness,
-    pages: data.pages.map(clientPage),
-    works: data.works,
-    segments: data.segments,
-    canEdit: data.canEdit,
-    canDelete: data.canDelete,
-    canMaintainWitness: data.canMaintainWitness,
-    maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES,
-  };
-}
+import { clientData, clientPage, workbenchCrumb } from '$lib/server/workbench-client';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   const data = await loadWorkbench(locals.db, locals.user, params.id);
   if (!data) throw error(404, t.errors.notFound);
-  const work = data.works[0];
-  return {
-    ...clientData(data),
-    crumb: work
-      ? { label: work.title, href: `/works/${work.slug}` }
-      : { label: data.witness.name, href: `/witnesses/${data.witness.slug}` },
-  };
+  return { ...clientData(data), crumb: workbenchCrumb(data) };
 };
 
 /** The transcription with the right to change it, for an action; a visitor or a reader is refused. */
@@ -243,7 +204,13 @@ export const actions: Actions = {
     if (!name) return fail(400, { copyError: t.settings.nameRequired });
     const copy = await createTranscription(
       event.locals.db,
-      { witnessId: data.witness.id, name, fromTranscriptionId: data.transcription.id },
+      {
+        witnessId: data.witness.id,
+        name,
+        fromTranscriptionId: data.transcription.id,
+        // One who reads the transcript's latest version copies that.
+        fromLatestVersion: data.transcription.shownVersion !== null,
+      },
       user.id,
     );
     throw redirect(303, `/transcriptions/${copy.id}`);
